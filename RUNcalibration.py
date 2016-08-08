@@ -25,9 +25,7 @@ for name,var in config.iteritems():
             raise Exception (name + ' has an invalid value.')
         
                 
-locals().update(config) #add all the variables in the config file to the local namespace
-
-print '\nStarted:'
+globals().update(config) #add all the variables in the config file to the local namespace
 
 refractiveSelfCalibration.Calibration(dX,dY,nX,nY,nCalPlanes,znet, sX,sY,pix_Pitch,so,f,nFrames, n1,n2,n3,tW,zW, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, dataPath, exptPath, camIDs)
 
