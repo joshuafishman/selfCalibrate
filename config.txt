@@ -1,0 +1,66 @@
+#Path to stored images
+dataPath: 'E:'
+
+#Path for saved output
+exptPath: 'E:'
+
+#Names of cameras being calibrated
+camIDs: 
+    - BL
+    - BCL
+    - BCR
+    - BR
+    - TL
+    - TCL
+    - TCR
+    - TR
+
+#indices of refraction
+n1: 1.0
+n2: 1.535
+n3: 1.32834
+
+#spacing of grid points (mm)
+dX: 8
+dY: 8
+
+#number of internal grid points
+nX: 9
+nY: 5
+
+#pixel pitch (size of a pixel)
+pix_Pitch: .02
+
+#distance of cameras from tank (mm)    
+so: -540 #should be negative
+
+#focal length of the lens  (mm)   
+f: 105
+
+#wall thickness (mm)
+tW: 63.5
+
+# size of images (pix)
+sX: 1280
+sY: 800
+
+#z coordinate of wall
+zW: -90 #should be negative
+
+#total traverse of calibration plate in millimeters
+znet: 254
+
+#number of calibration planes to use from images 
+nCalPlanes: 9
+
+#number of frames in calibration tiff -- optional, but preferrable to provide
+nFrames   : 1076
+
+#tolerances
+tol: 1.5e-8
+fg_tol: 0.001
+maxiter: 500
+bi_tol : 1e-3
+bi_maxiter: 1000
+z3_tol: 1e-3
+rep_err_tol: .05
