@@ -20,7 +20,7 @@ config = yaml.load(open(configPath , 'r'))
 for name,var in config.iteritems():
     if name not in ['dataPath','exptPath','camIDs']: #these values should be strings
         try:
-            float(var) #make sure everything that's supposed to be a number is
+            var = str(format(float(var),'.16f')) #make sure everything that's supposed to be a number is
         except:
             raise Exception (name + ' has an invalid value.')
         
