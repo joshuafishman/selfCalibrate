@@ -24,8 +24,11 @@ from mpl_toolkits.mplot3d import Axes3D #warning is inaccurate, this is used to 
 
 
 
-# This code performs the "Belden" method of self-calibration for multiple cameras in a refractive system 
+### This code performs the "Belden" method of self-calibration for multiple cameras in a refractive system 
 
+
+
+#################################     Class definitions    ##########################################
 
 
 class parameters(object):    
@@ -39,7 +42,7 @@ class parameters(object):
         return dict(self)
 
     @classmethod
-    def getInfo(cls):
+    def getInfo (cls):
         # get the names of input arguments passed into class and the parameters it holds (not always the same as input)
         Input = inspect.getargspec(cls.__init__)[0][1:] #get arguments passed into __init__
         
@@ -51,12 +54,13 @@ class parameters(object):
         
                                    
 class planeData(parameters):
+    #object containing parameters of the calibration planes/grids  
     def __init__(self,dX,dY,nX,nY,ncalplanes,znet= None, z0 = None):
         self.dX         = dX
         self.dY         = dY
-        self.nX         = nX
-        self.nY         = nY
-        self.ncalplanes = ncalplanes
+        self.nX         = int(nX) #these need to be ints
+        self.nY         = int(nY)
+        self.ncalplanes = int(ncalplanes)
         if z0:
             self.z0     = z0
         elif znet:
@@ -65,12 +69,14 @@ class planeData(parameters):
             raise Exception ("Input either z coordinates for each calibration plane (z0) or a net z traverse (znet).")                
 
 class sceneData(parameters):
+    #object containing parameters of the experimental setting
     def __init__(self,n1,n2,n3,tW,zW):
         self.n  = [n1,n2,n3]
         self.tW = tW
         self.zW = zW
 
 class cameraData(parameters):
+    #object containing parameters of the calibration images   
     def __init__(self,sX,sY,pitch,so,f,ncams,nframes):
         self.sX       = sX
         self.sY       = sY
@@ -80,11 +86,12 @@ class cameraData(parameters):
         self.f        = f
         self.so       = so
         self.a0       = 1/pitch*f
-        self.ncams    = ncams
-        self.nframes  = nframes
+        self.ncams    = int(ncams) #these need to be ints
+        self.nframes  = int(nframes)
         self.pix_phys = None
 
 class refracTol(parameters):
+    #object containing error tolerances for solvers
     def __init__(self,tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol):
         self.tol         = tol
         self.fg_tol      = fg_tol
@@ -94,38 +101,10 @@ class refracTol(parameters):
         self.z3_tol      = z3_tol
         self.rep_err_tol = rep_err_tol 
     
-def setupCamera(camData,nparam=7):
-    #Generate initial guesses for camera parameters
-    #Inputs:
-    # ncams      - number of cameras
-    # nparam     - number of parameters in model (default is 7, which is what the rest of the functions expect)
-    # camData:
-    #   a0       - magnification
-    #
-    #Output:
-    # cam_params - nparam x ncams matrix of camera parameters
     
-    a0 = camData.a0
-    ncams = camData.ncams
     
-    cam_params = np.zeros([nparam,ncams])
-    cam_params[6]=a0*np.ones([1,ncams])
-    
-    return cam_params
+########################### Multipage Tiff handling functions #####################################
 
-def setupPlanes(nplanes,z0):
-    #Generate initial guesses for plane parameters
-    #Inputs:
-    # nplanes      - number of planes in calibration images
-    # z0           - origin of z axis for each plane
-    #
-    #Outputs:
-    # plane_params - 6xNplanes matrix of plane parameters
-    
-    plane_params = np.zeros([6,nplanes])
-    plane_params[5]=z0
-    
-    return plane_params
     
 def getSpacedFrameInd(tiff, n, nframes = 0) :
     #Generate indices of n evenly spaced frames in a multipage tiff
@@ -148,7 +127,7 @@ def getSpacedFrameInd(tiff, n, nframes = 0) :
     
     return frameind
     
-def saveCalibImages(datapath, exptpath, camNames, ncalplanes, nframes = 0):
+def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     # get correct images for calibration from multipage tiff and save them in a folder called 'calibration'
     #Inputs:
     # datapath   - path to stored images
@@ -197,7 +176,7 @@ def saveCalibImages(datapath, exptpath, camNames, ncalplanes, nframes = 0):
                 
     return outpath
 
-def getCalibImages(datapath, camNames, ncalplanes, nframes = 0):
+def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     # return correct images for calibration from multipage tiff 
     #Inputs:
     # datapath   - path to stored images
@@ -233,6 +212,11 @@ def getCalibImages(datapath, camNames, ncalplanes, nframes = 0):
     
     return ical
             
+            
+            
+################################ Corner finding functions #############################################            
+            
+            
 def preprocess(img, t):
     # preprocess image for better corner finding
     #Inputs:
@@ -249,8 +233,157 @@ def preprocess(img, t):
     if m/mu > t:
         img[img>mu+std] = mu
     return img, std, mu, m/mu
+
+def fixCorners(points,nX,nY, numMissing):
+    # replace missing corners in a grid of found corners and reorder them by ascending x (right), descending y (up), by row first 
+    #Inputs:
+    # points     - found points
+    # nX,nY      - number of points per row, column on grid
+    # numMissing - number of corners missing (up to 2)
+    #             it should theoretically be not very hard to find more points using the helper functions, but I haven't implemented it yet
+    #Outputs:
+    # sPoints    - sorted full points array 
+   
+    print ('  Reconstructing corners.')
+    tol = .04 
+    pi = math.pi 
+    ret = 0
     
-def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_imgs = False, debug = False):
+    ##### Helper functions ####
+    
+    #function for distance between 2 points
+    dist =  lambda p1,p2: \
+            np.sqrt((p2[0]-p1[0])**2+(p2[1]-p1[1])**2) 
+    
+    #function for angle between p1 and p2 (out of 2pi)
+    def getAngle (p1,p2): 
+        theta = math.atan2((p2[1]-p1[1]),(p2[0]-p1[0])) if not np.array_equal(p1, p2) else 0
+        return theta if theta >= 0 else 2*pi+theta
+        
+    #function for difference between angles t1 and t2 out of 2pi
+    angleDiff = lambda t1,t2: \
+                abs(t1-t2) if abs(t1-t2)<pi else 2*pi-abs(t1-t2)    
+    
+    #function for range of angles theta. Polar plot angles if show_angles.    
+    def angleRange(theta , show_angles= False):
+        theta = [t if t >= 0 else 2*pi+t for t in theta] 
+       
+        my  = np.mean(np.sin(theta))
+        mx  = np.mean(np.cos(theta))
+        mid = math.atan2(my,mx) #mean angle in range in -pi to pi
+        mid = mid if mid>=0 else 2*pi+mid #convert to 0-2pi scale
+        
+        if show_angles:
+            figP = plt.figure('polar')
+            figP.clear()
+            ax = plt.subplot(111, projection='polar')
+            ax.plot(theta, np.ones(len(theta)),'.')
+            ax.plot(mid, 1,'gp')
+            plt.show()
+        
+        #split the angles into 2 even groups
+        if mid <= pi:  
+            above = [t for t in theta if t > mid and t < mid+pi]
+        else:
+            above = [t for t in theta if t < mid and t > mid-pi]
+        below = [t for t in theta if t not in above]
+            
+        mAbove = max(angleDiff(t,mid) for t in above) if above else 0
+        mBelow = max(angleDiff(t,mid) for t in below) if below else 0
+         
+        return mAbove + mBelow
+
+    #check if a point is on the edge of a grid of points. Polar plot of points if show_angles
+    isEdge   = lambda pt, pts, show_angles=False: \
+               angleRange( np.array([getAngle(pt, p) for p in pts if not np.array_equal(p,pt)]), show_angles) <= pi*(1+tol)        
+    
+    #check if a point is on the corner of a grid of points. Polar plot of points if show_angles
+    isCorner = lambda pt, pts, show_angles= False:  \
+               angleRange( np.array([getAngle(pt, p) for p in pts if not np.array_equal(p,pt)]), show_angles) <= 2*pi/3*(1+tol)        
+        
+    
+    #find up to num adjacent points and their angles relative to pt for a pt on a grid of pts         
+    def adjacent(pt, pts, num):
+        angles   = [] #angles to adjacent points
+        adj      = [] #adjacent points
+        
+        for p in sorted(pts, key = lambda p: dist(pt,p)): 
+            angle = getAngle(pt,p)
+            
+            if angle == 0 and (any(a == 0 for a in angles) or np.array_equal(p, pt)):#avoid dividing by 0
+                continue
+            elif any(abs((a-angle)/angle) < tol for a in angles) : 
+                continue   
+            
+            adj.append(p)
+            angles.append(angle)
+            
+            if len(adj) == num:
+                return np.array(adj),angles
+        
+        return np.array(adj),angles
+    
+    #find the intersection of 2 lines (format of a line if [m,b] for y = mx+b)
+    def intersection (l1, l2):
+        m1, b1 = l1[0], l1[1]
+        m2, b2 = l2[0], l2[1]
+        x      = (b2-b1)/(m1-m2)
+        y      = m1*x+b1
+        
+        return x,y
+    
+    
+    ### Actual corner replacement ###   
+    
+    edges   = np.array([p for p in points if isEdge(p,points)])
+    corners = np.array([p for p in points if isCorner(p,points)])
+    
+    lines = []
+    
+    # find the lines y=mx + b describing the sides of the grid
+    for n,c in enumerate(corners): 
+        for i,ang in enumerate(adjacent (c,edges,2)[1]):
+            angles = [getAngle(c,e) for e in edges if abs((getAngle(c,e)-ang)) < tol*pi/2]
+            m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
+            b      = c[1] - m*c[0]   #y = mx+b
+            if not any (line == [m,b] for line in lines):            
+                lines.append([m,b])       
+                
+    lines = sorted (lines, key = lambda l: abs(l[0])) #order lines by slope; should be 2 groups of similar slope
+    
+    # find corners at the intersection of lines [0,3], [0,4], [1,3], [1,4] 
+    cornersFound = np.array([intersection(lines[int(i/2)], lines[2+i%2]) for i in range (4)])    
+    
+    # add missing corners to found points array    
+    fPoints = np.append(points,[c for c in cornersFound if not any(np.array_equal(c,c1) for c1 in corners)], axis=0)
+    
+    if len(cornersFound) - len(corners) != numMissing:
+        print ('Unable to find corner or missing internal point. Found ' + str(len(cornersFound)) + ' corners.') 
+        return ret,fPoints
+    
+    ### Reordering ###
+     
+    theta   = math.atan(lines[3][0])
+    start   = sorted(cornersFound, key= lambda p:p[1])[0]
+    edges   = np.array([p for p in fPoints if isEdge(p,fPoints)])
+    bottom  = sorted(edges, key =  lambda p: abs(angleDiff(getAngle(start,p), math.atan(lines[1][0]))) if not np.array_equal(p, start) else 0)[:nX]
+    bottom  = sorted(bottom, key = lambda p: p[0])
+    #break the grid into vertical lines and find points on each in order
+    sPoints = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for x,bot in enumerate(bottom)]   
+    try:    
+        sPoints = np.array([sPoints[x][y] for y in range(nY) for x in range(nX)])
+        ret = 1
+    except:
+        print ('  Unable to find point ' + str([x,y]))
+        sPointsFail = []
+        for col in sPoints:
+            for point in col:
+                sPointsFail.append(point)
+        sPoints = np.array(sPointsFail)
+    
+    return ret, sPoints
+    
+def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_imgs = False, debug = True):
     #Find chessboard corners on grid images, either passed in directly or in a given location
     #Inputs:
     # camnames          - names of cameras to which images belong
@@ -303,8 +436,8 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                     files = sorted(glob.glob(os.path.join(cams[j],'*.tif')))
                     if len(files) < ncalplanes:
                         raise Exception ("Less than " +str(ncalplanes) + " images in " + cams[j] + " folder.")
-                    file = files[i]
-                    I = cv2.imread(file, 0)
+                    file  = files[i]
+                    I     = cv2.imread(file, 0)
                     print ('Finding corners in '+file)
                     
                 else:  
@@ -314,37 +447,67 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                     
                 # Find corners then refine
                 ret, corners = cv2.findChessboardCorners(I,(nX,nY))
-                cv2.cornerSubPix(I, corners, (10,10), (-1,-1), (cv.CV_TERMCRIT_ITER | cv.CV_TERMCRIT_EPS, 10, 0.01))
-                numfound = 0 if corners is None else len(corners) #number of corners found
-                
-                if not numfound==nX*nY: #cornerfinder failed                    
-                    print (' Cornerfinder failed -- preprocessing image')
-                    Inew = np.array(preprocess (I, 2)[0], dtype = 'uint8') # 2 is a hardcoded value
-                    _, corners = cv2.findChessboardCorners(Inew,(nX,nY))
-                    numfound = 0 if corners is None else len(corners) 
-                            
-                    if not numfound==nX*nY: #preprocessing failed
-                        print (' Preprocessing failed.')      
-                        
-                        if debug: #trying to find all failed images  
-                            failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
-                            continue  #skip to next iteration    
-                            
-                        figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
-                        cv2.drawChessboardCorners (Inew,(nX,nY), corners, 1)
-                        plt.imshow(I, cmap='gray')
-                        plt.show() 
-                        raise Exception ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j])
-                
-                    cv2.cornerSubPix(Inew, corners, (10,10), (-1,-1), (cv.CV_TERMCRIT_ITER | cv.CV_TERMCRIT_EPS, 10, 0.01))                    
-                    print (' Preprocessing successful')
+                #print  corners.shape
+                numfound     = 0 if corners is None else len(corners) #number of corners found
                     
+                if not ret or not numfound==nX*nY: #cornerfinder failed                    
+                    print (' Cornerfinder failed -- preprocessing image')
+                    Inew          = np.array(preprocess (I, 2)[0], dtype = 'uint8') # 2 is a hardcoded value
+                    ret, corners  = cv2.findChessboardCorners(Inew,(nX,nY))
+                    corners.shape = (len(corners),1,2)
+                    numfound      = 0 if corners is None else len(corners) 
+                            
+                    if not ret or numfound==nX*nY: #preprocessing failed
+                        print (' Preprocessing failed.')      
+                        # try reconstruct 4 corners of grid (these seem to fail most often)
+                        corners.shape = (len(corners),2)
+                        ret, corners  = fixCorners(corners, nX, nY, nX*nY-numfound)
+                        corners       = corners.astype('float32')
+                        numfound      = len(corners) 
+                        
+                        if ret and numfound==nX*nY: #reconstruction successful                            
+                            figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] +'-some reconstructed')                
+                            plt.imshow(I, cmap='gray')
+                            plt.plot(corners[:,0],corners[:,1])
+                            plt.show()    
+                                         
+                            corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV
+    
+                        else:    
+                            if debug: #trying to find all failed images  
+                                failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
+                                continue  #skip to next iteration  
+                                
+                            figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
+                            plt.plot(corners[:,0],corners[:,1])
+                            plt.imshow(I, cmap='gray')
+                            plt.show() 
+                            raise Exception ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
+                            
+                    print (' Processing successful.')    
+                    
+                if ret == 0 and numfound==nX*nY: #corner reordering failed   
+                    figR = plt.figure('Corners being reordered in image ' +str(i+1) + ' in camera ' +camnames[j])
+                    figR.clear()
+                    plt.imshow(I, cmap='gray')
+                    cv2.drawChessboardCorners(Inew, (nX,nY), corners, 0)
+                    plt.show()
+                               
+                    corners.shape = (len(corners),2)
+                    corners       = fixCorners(corners, nX, nY, nX*nY-numfound).astype('float32') #use the reconstruction function to reorder corners
+                    corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV
+                
+                
+                cv2.cornerSubPix(I, corners, (10,10), (-1,-1), (cv.CV_TERMCRIT_ITER | cv.CV_TERMCRIT_EPS, 10, 0.01))
+
+                
                 if show_imgs: #show images is on
-                    figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j])                
-                    cv2.drawChessboardCorners (I,(nX,nY), corners, ret)
+                    figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j])      
+                    figC.clear()
+                    plt.plot(corners[:,0,0], corners[:,0,1])
                     plt.imshow(I, cmap='gray')
                     plt.show()
-                    
+            
                 Dir = (corners[1]-corners[2])[0][0]         
                 N   = len(corners)-1  
                 cor = np.empty((nX*nY,1,2))
@@ -371,7 +534,7 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                         f.write(str(c[0])+'\t'+str(c[1])+'\n')
             
             except Exception as exc:      
-                raise Exception((str(exc)+'. Failed on image ' +str(i+1) + ' in camera ' + camnames[j] +'. ')), None, sys.exc_info()[2]                             
+                raise Exception((str(exc)+' Failed on image ' +str(i+1) + ' in camera ' + camnames[j] +'. ')), None, sys.exc_info()[2]                             
 
     print '\nDONE finding corners!'
     
@@ -398,6 +561,7 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
 
     # plot a full grid of points
     figG = plt.figure('Grid Points in Camera ' +str(camnum) +', Image ' +str(imgnum))
+    figG.clear()
     plt.axis([0,1280,0,800])
     plt.plot(u[0,nX*nY*(imgnum-1):nX*nY*(imgnum), camnum], u[1,nX*nY*(imgnum-1):nX*nY*(imgnum), camnum])
     plt.plot([p1[0],p2[0]], [p1[1],p2[1]],'r+')
@@ -405,6 +569,44 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
     
     scale = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)/(dX*nX)    
     return scale
+    
+    
+
+####################################### Calibration functions #############################################
+
+    
+def setupCamera(camData,nparam=7):
+    #Generate initial guesses for camera parameters
+    #Inputs:
+    # ncams      - number of cameras
+    # nparam     - number of parameters in model (default is 7, which is what the rest of the functions expect)
+    # camData:
+    #   a0       - magnification
+    #
+    #Output:
+    # cam_params - nparam x ncams matrix of camera parameters
+    
+    a0 = camData.a0
+    ncams = camData.ncams
+    
+    cam_params = np.zeros([nparam,ncams])
+    cam_params[6]=a0*np.ones([1,ncams])
+    
+    return cam_params
+
+def setupPlanes(nplanes,z0):
+    #Generate initial guesses for plane parameters
+    #Inputs:
+    # nplanes      - number of planes in calibration images
+    # z0           - origin of z axis for each plane
+    #
+    #Outputs:
+    # plane_params - 6xNplanes matrix of plane parameters
+    
+    plane_params = np.zeros([6,nplanes])
+    plane_params[5]=z0
+    
+    return plane_params
     
 def planar_grid_to_world(plane_params,xyzgrid,planeData):
     #Calculate world points based on plane parameters
@@ -906,8 +1108,8 @@ def img_refrac(XC,X,spData,rTol):
         i1 = np.array([x for x in range (Npts) if z3[x] < rTol.z3_tol])
         i2 = np.array([x for x in range (Npts) if z3[x] >= rTol.z3_tol])
 
-        if np.any(i1):
-            rdummy     = np.zeros(1,len(i1))
+        if not i1.size==0:
+            rdummy     = np.zeros(len(i1))
             #use bisection to solve the refractive equation for the rays from the wall to the camera
             rB[i1]     = bisection(rB0[i1],rD0[i1],rdummy,rP[i1],z1[i1],z2[i1],n1,n2,rTol.bi_tol)[0]
             #get the output from the refractive equation to check error (f ideally is 0)
@@ -922,8 +1124,8 @@ def img_refrac(XC,X,spData,rTol):
         if np.any(np.isnan(rB)) or np.any(np.isinf(rB)):         
             
             i1 = np.array([x for x in range (Npts) if z3[x] < rTol.z3_tol])            
-            if np.any(i1):
-                rdummy     =  np.zeros(1,len(i1))    
+            if not i1.size==0:
+                rdummy     =  np.zeros(len(i1))    
                 
                 #use bisection to solve the refractive equation for the rays from the wall to the camera
                 rB[i1]     =  bisection(rB0[i1],rD0[i1],rdummy,rP[i1],z1[i1],z2[i1],n1,n2,rTol.bi_tol)[0]   
@@ -1019,9 +1221,9 @@ def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
 
     return u
       
-def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,print_err=bool(0),print_data=bool(0)):
+def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,print_err=False,print_data=False):
     # This function finds the best-fit camera model by minimizing the
-    # sum of squared differences of the(known) world points projected into
+    # sum of squared differences of the (known) world points projected into
     # cameras and the measured images of these points.  The minimization is
     # done using a non-linear least squares Lev-Marq solver
     #
@@ -1163,7 +1365,7 @@ def planar_grid_adj (planeParams,P,xyzgrid,spData,planeData,rTol):
      
     return u
 
-def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,print_err=bool(0),print_data=bool(0)):
+def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,print_err=False,print_data=False):
     # This function finds the best-fit world point location by minimizing the
     # sum of squares of the point projected into (known) cameras.  The
     # minimization is done using a non-linear least squares Lev-Marq solver
@@ -1291,7 +1493,7 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     #   ncalplanes - number of planes
     #   z0         - origin for position of each calibration plane in millimeters
     # camData:     - camera data object
-    #   so         -
+    #   so         - distance of cameras from tank (mm)
     #   ncams      - number of cameras being calibrated
     # scData:      - scene data object 
     # tols:        - tolerances object 
@@ -1380,7 +1582,12 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     print ('Results: \n Final mean reprojection error in each camera: ' +str(rep_err_mean[Iter]) )  
     
     return P,camParams,Xworld,planeParams,rep_err
-    
+
+
+
+############################# Save and display data functions #################################
+
+
 def showCalibData(ccoords, X, zW): 
     #display calibration results
     #Inputs:
@@ -1473,7 +1680,12 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
         
         return f  # file will close when with statement terminates
 
-def setupObjects (dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,):
+
+
+####################################### General functions ##############################################################
+
+
+def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,):
     # setup experimental parameter storage objects
     #
     #Inputs:
@@ -1507,13 +1719,13 @@ def setupObjects (dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframe
     planedata   = planeData(dx,dy,nx,ny,ncalplanes,znet)
     cameradata  = cameraData(sx,sy,pix_pitch,so,f,ncams,nframes)
     scenedata   = sceneData(n1,n2,n3,tw,zw)
-    tolerances  = refracTol(tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol)  
+    tolerances  = refracTol(tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol) 
     
     return planedata, cameradata, scenedata, tolerances
     
     
-def Calibration(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, datapath, exptpath, camids) :
-    # Carry out the refractive autocalibration process from beginning to end 
+def CalibrationTiff(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, datapath, exptpath, camids) :
+    # Carry out the refractive autocalibration process from beginning to end from multipage tiffs 
     #
     #Inputs:
     # datapath    - Path to stored images
@@ -1546,10 +1758,10 @@ def Calibration(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n1,n2
     ncams = len(camids) #get number of cameras
     
     # setup experimental parameter storage objects
-    planedata, cameradata, scenedata, tolerances  = setupObjects (dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,)
+    planedata, cameradata, scenedata, tolerances  = setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,)
 
-    #find images for calibration in multipage tiff images files
-    calimages = getCalibImages (datapath, camids, planedata.ncalplanes, cameradata.nframes)
+    #find images for calibration in multipage tiff files
+    calimages = getCalibImagesTiff(datapath, camids, planedata.ncalplanes, cameradata.nframes)
     
     # call to corner finder to get 2D image plane points
     Umeas = findCorners(planedata, camids, imgs = calimages)
@@ -1560,7 +1772,7 @@ def Calibration(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n1,n2
     # display data
     showCalibData(camparams[:3], xworld, scenedata.zW)
     
-    #set physical size of a pixel in the image
+    #get the scale of the images
     cameradata.pix_phys = getScale(Umeas, planedata.nX, planedata.nY, planedata.dX, int(planedata.ncalplanes/2), int(ncams/2)) 
      
     # save data
