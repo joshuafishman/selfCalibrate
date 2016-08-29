@@ -1724,11 +1724,11 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
         f.write('{}\n'.format(np.mean(err)))
         
         # Image size and physical to pixel conversion factor
-        f.write('{}\t{}\t{}\n'.format(camdata.sX, camdata.sY, camdata.pix_phys))
+        f.write('{:d}\t{:d}\t{}\n'.format(camdata.sX, camdata.sY, camdata.pix_phys))
         
         # P matrices
         sizeP = np.shape(p)
-        f.write('{}\n'.format(sizeP[2]))
+        f.write('{:d}\n'.format(sizeP[2]))
         for n in range(sizeP[2]):
             
             f.write('{}\n'.format(camnames[n]))
