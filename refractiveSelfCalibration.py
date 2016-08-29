@@ -460,7 +460,7 @@ def fixCorners(points,nX,nY, numMissing):
     
     return ret, sPoints
     
-def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_imgs = True, debug = True):
+def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_imgs = False, debug = False):
     #Find chessboard corners on grid images, either passed in directly or in a given location
     #Inputs:
     # camnames          - names of cameras to which images belong
@@ -566,18 +566,7 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                             raise Exception ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
                             
                     print (' Processing successful.')    
-                    
-                if ret == 0 and numfound==nX*nY: #corner reordering failed   
-                    figR = plt.figure('Corners being reordered in image ' +str(i+1) + ' in camera ' +camnames[j])
-                    figR.clear()
-                    plt.imshow(I, cmap='gray')
-                    cv2.drawChessboardCorners(Inew, (nX,nY), corners, 0)
-                    plt.show()
-                               
-                    corners.shape = (len(corners),2)
-                    corners       = fixCorners(corners, nX, nY, nX*nY-numfound).astype('float32') #use the reconstruction function to reorder corners
-                    corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV
-                
+                                   
                 
                 cv2.cornerSubPix(I, corners, (10,10), (-1,-1), (cv.CV_TERMCRIT_ITER | cv.CV_TERMCRIT_EPS, 10, 0.01))
 
@@ -1158,7 +1147,7 @@ def img_refrac(XC,X,spData,rTol):
     
     
     # solve the refractve equations (snell's law) for the length of the ray in each medium
-    if t==0: # no wall thickness -> no ray in wall
+    if t==0: # no wall thickness -> no ray in wall -> only 2 media
         rB = rP
         #indices of out-of-tank and in-tank points
         i1 = np.array([x for x in range (Npts) if z3[x] ==0])
@@ -1182,6 +1171,7 @@ def img_refrac(XC,X,spData,rTol):
             warnings.warn('Warning: f has a NaN',stacklevel=2)
             
     elif t > 0:
+        #3 media
         rB = rP
         rD = rP
 
@@ -1190,6 +1180,7 @@ def img_refrac(XC,X,spData,rTol):
         i2 = np.array([x for x in range (Npts) if z3[x] >= rTol.z3_tol])
 
         if not i1.size==0:
+            #solve for any on-wall (2 media) points
             rdummy     = np.zeros(len(i1))
             #use bisection to solve the refractive equation for the rays from the wall to the camera
             rB[i1]     = bisection(rB0[i1],rD0[i1],rdummy,rP[i1],z1[i1],z2[i1],n1,n2,rTol.bi_tol)[0]
@@ -1276,7 +1267,40 @@ def P_from_params (cam_params,caData):
     P = np.dot(K,P)
 
     return P
+    
+def refrac_proj(X,P,spData,rTol, Ind =[]):
+    # Given M camera pinhole matrices and the coordinates of a world point,
+    # project the world point to image points in each camera.
+    #
+    #Inputs:
+    # P           - 3x4xM matrix of pinhole camera matrices
+    # X           - 3xNpts vector containing coordinates of world points
+    # SpData:     - imaging system parameters 
+    # rTol        - object containing tolerances for solvers
+    # Ind         - indices of points on the tank wall (so no refraction)
+    #
+    #Outputs:
+    # u           - 2 x Npts x M matrix of non-homogeneous image points
 
+    ncams = np.shape(P)[2] 
+    ind   = [i for i in range(len(X[2])) if i not in Ind] #in-tank points
+    
+    # Project the points into the cameras.
+    u =np.empty([2,len(X[0]),ncams])
+    for j in range(ncams):      
+        XC = cam_decomp(P[:,:,j])  #find camera centers
+        XB = np.zeros_like(X)
+        XBtemp    = img_refrac(XC,X[:,ind],spData,rTol)[0]  #length of each ray from the tank wall to the camera (from refractive model)
+        XB[:,ind] = XBtemp
+        
+        xtemp         = np.dot(P[:,:,j],np.vstack((XB,np.ones(len(XB[1])))))
+        xtemp[0,:]    = xtemp[0,:]/xtemp[2,:]
+        xtemp[1,:]    = xtemp[1,:]/xtemp[2,:]
+    
+        u[:,:,j]  = xtemp[:2,:]
+        
+    return u
+    
 def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
     # This function projects the 3D world points to 2D image coordinates using 7 camera parameters
     #Inputs:
@@ -1290,16 +1314,10 @@ def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
     # u           - 2xN matrix of image points
     
     
-    P = P_from_params (cam_params,caData) #camera matrix       
-    XC = cam_params[0:3]  #world-frame camera location
-    XB = img_refrac(XC,X,spData,rTol)[0]  #length of each ray from the tank wall to the camera (from refractive model)
-
-    xtemp         = np.dot(P, np.append(XB,np.ones( (1, len(XB[1])) ), axis=0) )
-    xtemp[0,:]    = xtemp[0,:]/xtemp[2,:]
-    xtemp[1,:]    = xtemp[1,:]/xtemp[2,:]
-
-    u       = np.ravel(xtemp[0:2,:])
-
+    P       = P_from_params (cam_params,caData) #camera matrix   
+    P.shape = [3,4,1] #shape P for refrac_proj
+    u       = refrac_proj(X,P,spData,rTol) [:,:,0]
+ 
     return u
       
 def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,print_err=False,print_data=False):
@@ -1368,7 +1386,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,pri
                  #set lower, upper bounds for specific parameters below:
                 #[bound[0][6], bound[1][6]]= [par0[6,j],par0[6,j]*2]
                 
-                f = lambda x,*p: refrac_proj_onecam(np.array(p),x,sD,cD,rTol)
+                f = lambda x,*p: np.ravel(refrac_proj_onecam(np.array(p),x,sD,cD,rTol))
                 # curve_fit needs a function that takes the independent variable as the first argument and the parameters to fit as separate remaining arguments, which the lambda function provides    
                                
                 if any (bound):                    
@@ -1413,37 +1431,22 @@ def planar_grid_adj (planeParams,P,xyzgrid,spData,planeData,rTol):
     # rTol          - object containing tolerances  
     # spData:
     #       Zw      - Z coordinate of wall 
-    #       n       - index of refraction of air, glass and water
     #       tW      - wall thickness
-    #
     # planeData     - basic quantities associated with calibration images (unpacked later)
     #    
     #Outputs:
     # u             - 2xN matrix of non-homogeneous image points
     
-    ncams  = np.shape(P)[2]
     Zw, t = spData.zW, spData.tW
     
     # Calculate the world points based on the plane parameters
     X = planar_grid_to_world(planeParams,xyzgrid,planeData)
     
-    ind = [x for x in range( len(X[2,:]) ) if X[2,x] >= (Zw+t)]
+    Ind = [x for x in range( len(X[2]) ) if X[2,x] < (Zw+t)] #out-of-tank points
     
     # Project the points into the cameras.
-    u =np.empty([2,len(X[0]),ncams])
-    for j in range(ncams):
-        
-        XC        = cam_decomp(P[:,:,j])#get camera centers        
-        XB        = np.zeros_like(X) 
-        XBtemp    = img_refrac(XC,X[:,ind],spData,rTol)[0]  #length of each ray from the tank wall to the camera (from refractive model)
-        XB[:,ind] = XBtemp
-        
-        xtemp         = np.dot(P[:,:,j],np.vstack((XB,np.ones(len(XB[1])))))
-        xtemp[0,:]    = xtemp[0,:]/xtemp[2,:]
-        xtemp[1,:]    = xtemp[1,:]/xtemp[2,:]
+    u = refrac_proj(X,P,spData,rTol,Ind)
     
-        u[:,:,j]  = xtemp[:2,:]
-     
     return u
 
 def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,print_err=False,print_data=False):
@@ -1511,33 +1514,7 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
           
     return (Xadj,planeParams)
 
-def refrac_proj(X,P,spData,rTol):
-    # Given M camera pinhole matrices and the coordinates of a world point,
-    # project the world point to image points in each camera.
-    #
-    #Inputs:
-    # P           - 3x4xM matrix of pinhole camera matrices
-    # X           - 3xNpts vector containing coordinates of world points
-    # SpData:     - imaging system parameters 
-    # rTol        - object containing tolerances for solvers
-    #
-    #Outputs:
-    # u           - 2 x Npts x M matrix of non-homogeneous image points
 
-    ncams = np.shape(P)[2]
-    
-    # Project the points into the cameras.
-    u =np.empty([2,len(X[0]),ncams])
-    for j in range(ncams):      
-        XC = cam_decomp(P[:,:,j])  #find camera centers
-        XB = img_refrac(XC,X,spData,rTol)[0]  #length of each ray from the tank wall to the camera (from refractive model)       
-        xtemp         = np.dot(P[:,:,j],np.vstack((XB,np.ones(len(XB[1])))))
-        xtemp[0,:]    = xtemp[0,:]/xtemp[2,:]
-        xtemp[1,:]    = xtemp[1,:]/xtemp[2,:]
-    
-        u[:,:,j]  = xtemp[:2,:]
-        
-    return u
     
 def reprojError (umeas,P,xPts,spData,rTol):
     # Calculate pointwise and mean reprojection errors given camera matrices and plane parameters
@@ -1724,11 +1701,11 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
         f.write('{}\n'.format(np.mean(err)))
         
         # Image size and physical to pixel conversion factor
-        f.write('{:d}\t{:d}\t{}\n'.format(camdata.sX, camdata.sY, camdata.pix_phys))
+        f.write('{:d}\t{:d}\t{}\n'.format(int(camdata.sX), int(camdata.sY), camdata.pix_phys))
         
         # P matrices
         sizeP = np.shape(p)
-        f.write('{:d}\n'.format(sizeP[2]))
+        f.write('{:d}\n'.format(int(sizeP[2])))
         for n in range(sizeP[2]):
             
             f.write('{}\n'.format(camnames[n]))
