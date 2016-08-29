@@ -285,11 +285,14 @@ def fixCorners(points,nX,nY, numMissing):
         else:
             above = [t for t in theta if t < mid and t > mid-pi]
         below = [t for t in theta if t not in above]
-            
+        
+        #find the range of each group
         mAbove = max(angleDiff(t,mid) for t in above) if above else 0
         mBelow = max(angleDiff(t,mid) for t in below) if below else 0
+        
+        Range = mAbove + mBelow
          
-        return mAbove + mBelow
+        return Range
 
     #function to check if a point is on the edge of a grid of points. Polar plot of points if show_angles
     isEdge   = lambda pt, pts, show_angles=False: \
@@ -300,7 +303,7 @@ def fixCorners(points,nX,nY, numMissing):
                angleRange( np.array([getAngle(pt, p) for p in pts if not np.array_equal(p,pt)]), show_angles) <= 2*pi/3*(1+tol)        
         
     
-    #function to find up to num adjacent points and their angles relative to pt for a pt on a grid of pts         
+    #function to find up to num adjacent points and their angles relative to pt on a grid pts         
     def adjacent(pt, pts, num):
         angles   = []
         adj      = []
@@ -317,9 +320,9 @@ def fixCorners(points,nX,nY, numMissing):
             if len(adj) == num:
                 return np.array(adj),angles
         
-        return np.array(adj),angles
+        return np.array(adj), angles
     
-    #function to find the intersection of 2 lines (format of a line if [m,b] for y = mx+b)
+    #function to find the intersection of 2 lines (format of a line is [m,b] for y = mx+b)
     def intersection (l1, l2):
         m1, b1 = l1[0], l1[1]
         m2, b2 = l2[0], l2[1]
@@ -331,8 +334,13 @@ def fixCorners(points,nX,nY, numMissing):
     
     
     ### Actual point replacement ###   
+    
+    
     ret = 0
-    #First, replace any of the four corners of the grid if they're missing
+    
+    
+    #First, replace any of the four corners of the grid if they're missing:
+    
     edges   = np.array([p for p in points if isEdge(p,points)])
     corners = np.array([p for p in points if isCorner(p,points)])
     
@@ -361,7 +369,8 @@ def fixCorners(points,nX,nY, numMissing):
         print ('Unable to find corner or missing internal point. Found ' + str(len(cornersFound)) + ' corners.') 
         return ret, fPoints
     
-    #reconstruct and sort edges
+    
+    #Next, re-find and sort the edges
     edges  = [p for p in fPoints if isEdge(p,fPoints)]
     edges  = [sorted([p for p in edges if abs(2*(p[1]-l[0]*p[0]-l[1])/(p[1]+l[0]*p[0])) < tol], key = lambda p: p[1]) for l in cLines]
     
@@ -376,7 +385,11 @@ def fixCorners(points,nX,nY, numMissing):
     if np.mean(left[:,0]) > np.mean(right[:,0]):
         left,right = right,left
     
+    
     #using the sorted edges, break the grid into rows and columns
+    #need 2 complete edges to work
+    #future work: match up points on opposite edges
+    
     if len(bottom) == nX:
         theta  = math.atan(cLines[3][0])
         columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom] 
@@ -384,8 +397,7 @@ def fixCorners(points,nX,nY, numMissing):
         theta  = math.atan(-cLines[3][0])
         columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(t, p), theta)) < tol*pi/2 or np.array_equal(p, t)], key = lambda p: p[1]) for t in top] 
     else:
-        #future work: match up points on opposite edges
-        print("Missing parallel edge points -- unable to reconstruct grid")
+        print("Missing too many edge points -- unable to reconstruct grid")
         return ret, fPoints
     
     if len(left)   == nY:    
@@ -398,7 +410,9 @@ def fixCorners(points,nX,nY, numMissing):
         print("Missing parallel edge points -- unable to reconstruct grid")
         return ret, fPoints
    
-    #using the rows and columns, find the lines defining the grid       
+   
+    #using the rows and columns, find the lines defining the grid      
+   
     colLines = []
     for col in columns:
         angles = [getAngle(col[0],p) for p in col[1:]] 
@@ -420,7 +434,8 @@ def fixCorners(points,nX,nY, numMissing):
         return ret, fPoints
     
 
-    #reconstruct the grid points by placing a point at each grid intersection    
+    #Finally, reconstruct the grid points by placing a point at each grid intersection    
+
     fPoints = np.array([intersection(colLines[c], rowLines[r]) for c in range (nX) for r in range (nY)])
     
     
@@ -435,8 +450,10 @@ def fixCorners(points,nX,nY, numMissing):
     #plt.plot(rowPoints[:,0],rowPoints[:,1])
     #plt.plot(fPoints[:,0],fPoints[:,1],'p')
    
+
     
     ### Reordering ###
+    
     #by ascending x (right), descending y (up), by row first
 
     theta  = math.atan(cLines[3][0])
@@ -444,6 +461,7 @@ def fixCorners(points,nX,nY, numMissing):
     edges  = np.array([p for p in fPoints if isEdge(p,fPoints)])
     bottom = sorted(edges, key =  lambda p: abs(angleDiff(getAngle(start,p), math.atan(cLines[1][0]))) if not np.array_equal(p, start) else 0)[:nX]
     bottom = sorted(bottom, key = lambda p: p[0])
+    
     #break the grid into vertical lines and find points on each in order
     #sPoints - sorted points array
     sPoints = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom]   
@@ -1246,7 +1264,7 @@ def P_from_params (cam_params,caData):
     
     #rotation angles from world to image plane 
     alpha = cam_params[3]
-    phi = cam_params[4]
+    phi   = cam_params[4]
     theta = cam_params[5]
     
     #intrinsic camera matrix
@@ -1277,7 +1295,7 @@ def refrac_proj(X,P,spData,rTol, Ind =[]):
     # X           - 3xNpts vector containing coordinates of world points
     # SpData:     - imaging system parameters 
     # rTol        - object containing tolerances for solvers
-    # Ind         - indices of points on the tank wall (so no refraction)
+    # Ind         - indices of out-of-tank points (so no refraction)
     #
     #Outputs:
     # u           - 2 x Npts x M matrix of non-homogeneous image points
@@ -1302,7 +1320,7 @@ def refrac_proj(X,P,spData,rTol, Ind =[]):
     return u
     
 def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
-    # This function projects the 3D world points to 2D image coordinates using 7 camera parameters
+    # This function projects the 3D world points to image coordinates in one camera using 7 camera parameters
     #Inputs:
     # cam_params  - camera parameters
     # X           - 4xN matrix of world points,
@@ -1320,7 +1338,7 @@ def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
  
     return u
       
-def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,print_err=False,print_data=False):
+def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False,print_err=False,print_data=False):
     # This function finds the best-fit camera model by minimizing the
     # sum of squared differences of the (known) world points projected into
     # cameras and the measured images of these points.  The minimization is
@@ -1370,9 +1388,9 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,pri
         utemp = u[:,ind,j]                
         umeas = np.ravel(utemp)
 
-        stop_flag=1
+        stop_flag=True
         while stop_flag:
-            stop_flag = 0
+            stop_flag = False
             # assume refractive model
             
             #utest = refrac_proj_onecam(par0[:,j],Xtemp,sD,cD,rTol) #test for img_refrac and refrac_proj_onecam                   
@@ -1399,7 +1417,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,pri
                 if maxfunc_dontstop_flag: 
                     # double the max eval count and try again
                     m_eval=2*m_eval
-                    stop_flag=1
+                    stop_flag=True
                 else:
                     raise
                     
@@ -1410,13 +1428,13 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=0,pri
                 print ('\nAdjusting camera ' +str(j+1)+' parameters:')
                 print ('error pre-optimization = '+str(np.mean (refrac_proj_onecam(par0[:,j],Xtemp,sD,cD,rTol)-umeas)))            
                 print ('error post-optimization = '+str(np.mean (refrac_proj_onecam(params[:,j],Xtemp,sD,cD,rTol)-umeas)))
-                if print_data:                
-                    print '\npar0:' 
-                    for l in par0[:,j]:
-                        print l
-                    print '\nparams:'    
-                    for l in params[:,j]:
-                        print l   
+            if print_data:                
+                print '\npar0:' 
+                for l in par0[:,j]:
+                    print l
+                print '\nparams:'    
+                for l in params[:,j]:
+                    print l   
 
     return (Pnew,params)
    
@@ -1465,7 +1483,7 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
     # spData              - basic quantities associated with experiment (unpacked later)
     # planeData           - basic quantities associated with calibration images (unpacked later)
     # print_err           - boolean; Print pre- and post- optimization error
-    # print_data          - boolean; Print initial and final data (if print_err is also on)
+    # print_data          - boolean; Print initial and final plane parameters 
     #    
     #Outputs:
     # plane_params        - optimized plane parameters
@@ -1494,23 +1512,23 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
     planeParamsFlat = scipy.optimize.curve_fit(f, np.ravel(xyzgrid), np.ravel(umeas_temp), np.ravel(planeParams0))[0]    
     
     #reshape 1D output     
-    planeParams = np.reshape(planeParamsFlat,np.shape(planeParams0))  
+    planeParams = np.reshape(planeParamsFlat, np.shape(planeParams0))  
     
     #Get world points from adjusted grid parameters
-    Xadj = planar_grid_to_world(planeParams,xyzgrid,planeData)
+    Xadj = planar_grid_to_world(planeParams, xyzgrid, planeData)
     
     #print in format for tests
     if print_err:
         print ('\nAdjusting plane parameters:')
         print ('error pre-optimization = '+str(np.mean(planar_grid_adj(planeParams0,P,xyzgrid,spData,planeData,rTol)-umeas_temp)))            
         print ('error post-optimization = '+str(np.mean (planar_grid_adj(planeParams,P,xyzgrid,spData,planeData,rTol)-umeas_temp)))   
-        if print_data:        
-            print '\nplaneParams0:' 
-            for l in planeParams0:
-                print l
-            print '\nplaneParams:'    
-            for l in planeParams:
-                print l   
+    if print_data:        
+        print '\nplaneParams0:' 
+        for l in planeParams0:
+            print l
+        print '\nplaneParams:'    
+        for l in planeParams:
+            print l   
           
     return (Xadj,planeParams)
 
