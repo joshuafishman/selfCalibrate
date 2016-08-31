@@ -10,12 +10,14 @@ import yaml
 import sys
 import os.path  
 
+
+#Command line UI
 path       = sys.argv[1] if len(sys.argv)>1 else '' #current input
 configPath = ''                                     #full path
 
-while not configPath or not os.path.isfile(configPath):
+while not os.path.isfile(configPath):
                            
-    if os.path.exists(os.path.join(configPath, path)) or os.path.exists(configPath): #add path to configPath 
+    if os.path.exists(os.path.join(configPath, path)) or os.path.exists(configPath): #User input and actual path parsing stage
         if os.path.exists(os.path.join(configPath, path)): 
             configPath = os.path.join(configPath, path)    
         else:
@@ -56,7 +58,7 @@ while not configPath or not os.path.isfile(configPath):
         elif len(places) == 0:
             print ('No locations found in ' +configPath + ' containing ' +name)      
         else:
-            print ('Multiple locations containing "' + name + '"' + ' in ' +configPath + ' :\n' + str(places))
+            print ('Multiple locations containing "' + name + '" in ' +configPath + ' :\n' + str(places))
     
     
 #config file must have exactly correct variable names
