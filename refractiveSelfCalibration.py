@@ -14,8 +14,7 @@ import tiffcapture as tc
 import numpy as np
 import cv2
 import numpy.linalg as lin
-import cv2.cv as cv
-import math
+import cv2.cv as cv 
 import itertools
 import warnings
 import scipy.optimize
@@ -180,7 +179,6 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     # return correct images for calibration from multipage tiff 
     #Inputs:
     # datapath   - path to stored images
-    # exptpath   - path to output saved data
     # camNames   - names of cameras to which images belong
     # ncalplanes - number of calibration planes in images
     # nframes    - number of frames in each tiff -- if not provided, program will try to determine (slow)
@@ -212,7 +210,27 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     
     return ical
             
-            
+def getCalibImagesFolder(datapath, camNames, ncalplanes):   
+    # return correct images for calibration from folders
+    #Inputs:
+    # datapath   - path to stored images
+    # camNames   - names of camera folders
+    # ncalplanes - number of calibration planes in images
+    #
+    #Outputs:
+    # ical       - images to use for calibration ([ncams[nplanes]])    
+    
+    cams = [y for y in glob.glob(datapath) for i in range(0, len(camNames)) if camNames[i] in y]
+    try:
+        ical   = [[cv2.imread(glob.glob(c)[j]) for j in range(ncalplanes)] for c in cams]  
+    except EOFError:     
+        try: #whoooah meta
+            raise EOFError ("Only "+ str(j)+ "images in " + c + "; Need " + str(ncalplanes) )
+             #should work, but it plays a bit fast and loose with scope so:
+        except UnboundLocalError:
+            raise  #less specific 
+    
+    return ical
             
 ################################ Corner finding functions #############################################            
             
@@ -245,7 +263,7 @@ def fixCorners(points,nX,nY, numMissing):
     # sPoints    - sorted full points array 
     
     tol = .04 
-    pi = math.pi 
+    pi = np.pi 
     
     ##### Helper functions ####
     
@@ -255,7 +273,7 @@ def fixCorners(points,nX,nY, numMissing):
     
     #function for angle between p1 and p2 (out of 2pi)
     def getAngle (p1,p2): 
-        theta = math.atan2((p2[1]-p1[1]),(p2[0]-p1[0])) if not np.array_equal(p1, p2) else 0
+        theta = np.atan2((p2[1]-p1[1]),(p2[0]-p1[0])) if not np.array_equal(p1, p2) else 0
         return theta if theta >= 0 else 2*pi+theta
         
     #function for difference between angles t1 and t2 out of 2pi
@@ -268,7 +286,7 @@ def fixCorners(points,nX,nY, numMissing):
        
         my  = np.mean(np.sin(theta))
         mx  = np.mean(np.cos(theta))
-        mid = math.atan2(my,mx) #mean angle in range in -pi to pi
+        mid = np.atan2(my,mx) #mean angle in range in -pi to pi
         mid = mid if mid>=0 else 2*pi+mid #convert to 0-2pi scale
         
         if show_angles:
@@ -391,20 +409,20 @@ def fixCorners(points,nX,nY, numMissing):
     #future work: match up points on opposite edges
     
     if len(bottom) == nX:
-        theta  = math.atan(cLines[3][0])
+        theta  = np.atan(cLines[3][0])
         columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom] 
     elif len(top) == nX:
-        theta  = math.atan(-cLines[3][0])
+        theta  = np.atan(-cLines[3][0])
         columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(t, p), theta)) < tol*pi/2 or np.array_equal(p, t)], key = lambda p: p[1]) for t in top] 
     else:
         print("Missing too many edge points -- unable to reconstruct grid")
         return ret, fPoints
     
     if len(left)   == nY:    
-        theta   = math.atan(cLines[0][0])
+        theta   = np.atan(cLines[0][0])
         rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(lef, p), theta)) < tol*pi/2 or np.array_equal(p, lef)], key = lambda p: p[0])  for lef in left]
     elif len(right) == nY:
-        theta   = math.atan(-cLines[0][0])
+        theta   = np.atan(-cLines[0][0])
         rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(rig, p), theta)) < tol*pi/2 or np.array_equal(p, rig)], key = lambda p: p[0]) for rig in right]
     else:
         print("Missing parallel edge points -- unable to reconstruct grid")
@@ -456,10 +474,10 @@ def fixCorners(points,nX,nY, numMissing):
     
     #by ascending x (right), descending y (up), by row first
 
-    theta  = math.atan(cLines[3][0])
+    theta  = np.atan(cLines[3][0])
     start  = sorted([p for p in fPoints if isCorner(p,fPoints)], key= lambda p:p[1])[0]
     edges  = np.array([p for p in fPoints if isEdge(p,fPoints)])
-    bottom = sorted(edges, key =  lambda p: abs(angleDiff(getAngle(start,p), math.atan(cLines[1][0]))) if not np.array_equal(p, start) else 0)[:nX]
+    bottom = sorted(edges, key =  lambda p: abs(angleDiff(getAngle(start,p), np.atan(cLines[1][0]))) if not np.array_equal(p, start) else 0)[:nX]
     bottom = sorted(bottom, key = lambda p: p[0])
     
     #break the grid into vertical lines and find points on each in order
@@ -478,7 +496,7 @@ def fixCorners(points,nX,nY, numMissing):
     
     return ret, sPoints
     
-def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_imgs = False, debug = False):
+def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug = False):
     #Find chessboard corners on grid images, either passed in directly or in a given location
     #Inputs:
     # camnames          - names of cameras to which images belong
@@ -486,8 +504,6 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
     #     ncalplanes    - number of planes
     #     nX,nY         - number of grid points per row and column on each plane
     # exptpath          - optional; location to save a file containing corners 
-    # datapath          - location to get images from if they aren't being passed in directly
-    # OR
     # imgs              - array of images in which to find corners (order should be [camera[image]]).
     # show_imgs         - boolean; plot found corners on images         
     # debug             - boolean; if cornerfinder is failing, find out which points failed in which images          
@@ -499,20 +515,7 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
     ncams         = len(camnames)
     ncalplanes    = pData.ncalplanes
     nX,nY         = pData.nX, pData.nY
-    
-    if any(imgs) :
-        imgloc = 'imgs' # images were passed directly         
-    elif any(datapath) and not any(imgs): 
-        imgloc = 'path' # images not passed, so they should be found on the path
-        cams   = sorted(glob.glob(datapath)) # folder holding image folders must be named 'calibration'
-        if len(cams)<ncams:
-            if not cams:
-                raise NameError ("Calibration image folder in " +datapath+" not found or empty.")
-            else:    
-                raise EOFError ("Not enough camera folders in "+datapath)
-    else:
-        raise ValueError ("Images not passed to corner finder. Either provide them directly (imgs argument) or provide a path to their location (datapath argument)")
-    
+      
     if exptpath:
         f = open(os.path.join(exptpath,'corners.dat'), 'w')
         f.write(str(ncalplanes)+'\n')
@@ -526,18 +529,8 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
     for i in range(0,ncalplanes):
         for j in range(0,ncams):
             try:
-                #get image
-                if imgloc == 'path':
-                    files = sorted(glob.glob(os.path.join(cams[j],'*.tif')))
-                    if len(files) < ncalplanes:
-                        raise ValueError ("Less than " +str(ncalplanes) + " images in " + cams[j] + " folder.")
-                    file  = files[i]
-                    I     = cv2.imread(file, 0)
-                    print ('Finding corners in '+file)
-                    
-                else:  
-                    I = imgs[j][i]
-                    print ('Finding corners in image '+str(i+1) +' in camera ' +camnames[j])
+                I = imgs[j][i]
+                print ('Finding corners in image '+str(i+1) +' in camera ' +camnames[j])
                 
                     
                 # Find corners then refine
@@ -655,7 +648,7 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
     plt.plot([p1[0],p2[0]], [p1[1],p2[1]],'r+')
     plt.show()
     
-    scale = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)/(dX*nX)    
+    scale = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)/(dX*nX)    
     return scale
     
     
@@ -714,9 +707,9 @@ def planar_grid_to_world(plane_params,xyzgrid,planeData):
     XG              = plane_params[3:6]
     
     for j in range(0,nplanes):
-        Rot = np.array([[math.cos(theta[j])*math.cos(phi[j]) + math.sin(theta[j])*math.sin(alpha[j])*math.sin(phi[j]), math.sin(theta[j])*math.cos(alpha[j]), -math.cos(theta[j])*math.sin(phi[j]) + math.sin(theta[j])*math.sin(alpha[j])*math.cos(phi[j])], \
-                        [-math.sin(theta[j])*math.cos(phi[j]) + math.cos(theta[j])*math.sin(alpha[j])*math.sin(phi[j]), math.cos(theta[j])*math.cos(alpha[j]), math.sin(theta[j])*math.sin(phi[j]) + math.cos(theta[j])*math.sin(alpha[j])*math.cos(phi[j])], \
-                        [math.cos(alpha[j])*math.sin(phi[j]),-math.sin(alpha[j]), math.cos(alpha[j])*math.cos(phi[j])]])
+        Rot = np.array([[np.cos(theta[j])*np.cos(phi[j]) + np.sin(theta[j])*np.sin(alpha[j])*np.sin(phi[j]), np.sin(theta[j])*np.cos(alpha[j]), -np.cos(theta[j])*np.sin(phi[j]) + np.sin(theta[j])*np.sin(alpha[j])*np.cos(phi[j])], \
+                        [-np.sin(theta[j])*np.cos(phi[j]) + np.cos(theta[j])*np.sin(alpha[j])*np.sin(phi[j]), np.cos(theta[j])*np.cos(alpha[j]), np.sin(theta[j])*np.sin(phi[j]) + np.cos(theta[j])*np.sin(alpha[j])*np.cos(phi[j])], \
+                        [np.cos(alpha[j])*np.sin(phi[j]),-np.sin(alpha[j]), np.cos(alpha[j])*np.cos(phi[j])]])
 
         xtmp = np.reshape(XG[:,j],(3,1))
         XYZgrid=np.dot(lin.inv(Rot),xyzgrid)+np.repeat(xtmp,nX*nY,axis=1)
@@ -1223,7 +1216,7 @@ def img_refrac(XC,X,spData,rTol):
                 #get the output from the refractive equation to check error (f ideally is 0)
                 fcheck[i1] =  f_eval_1eq(rB[i1],rP[i1],z1[i1],z2[i1],n1,n2)[0]                 
            
-            nan_ind  = [x for x in range (len(rB)) if math.isnan(rB[x]) or math.isinf(rB[x])]            
+            nan_ind  = [x for x in range (len(rB)) if np.isnan(rB[x]) or np.isinf(rB[x])]            
             #use iterative bisection to solve the 2 refractive equations for the rays from the wall to the camera and in the wall
             rB[nan_ind],rD[nan_ind],_ =  refrac_solve_bisec(rB0[nan_ind],rD0[nan_ind],rP[nan_ind],z1[nan_ind],z2[nan_ind],z3[nan_ind],n1,n2,n3,rTol.bi_tol,rTol.bi_maxiter)
 
@@ -1276,9 +1269,9 @@ def P_from_params (cam_params,caData):
     K[1,2]=caData.shifty
     
     #Rotation matrix
-    Rot = np.array([[math.cos(theta)*math.cos(phi) + math.sin(theta)*math.sin(alpha)*math.sin(phi), math.sin(theta)*math.cos(alpha), -math.cos(theta)*math.sin(phi) + math.sin(theta)*math.sin(alpha)*math.cos(phi)], \
-                    [-math.sin(theta)*math.cos(phi) + math.cos(theta)*math.sin(alpha)*math.sin(phi), math.cos(theta)*math.cos(alpha), math.sin(theta)*math.sin(phi) + math.cos(theta)*math.sin(alpha)*math.cos(phi)], \
-                    [math.cos(alpha)*math.sin(phi),-math.sin(alpha), math.cos(alpha)*math.cos(phi)]])
+    Rot = np.array([[np.cos(theta)*np.cos(phi) + np.sin(theta)*np.sin(alpha)*np.sin(phi), np.sin(theta)*np.cos(alpha), -np.cos(theta)*np.sin(phi) + np.sin(theta)*np.sin(alpha)*np.cos(phi)], \
+                    [-np.sin(theta)*np.cos(phi) + np.cos(theta)*np.sin(alpha)*np.sin(phi), np.cos(theta)*np.cos(alpha), np.sin(theta)*np.sin(phi) + np.cos(theta)*np.sin(alpha)*np.cos(phi)], \
+                    [np.cos(alpha)*np.sin(phi),-np.sin(alpha), np.cos(alpha)*np.cos(phi)]])
 
     P[:,0:3]=Rot
     P[:,3]=np.dot(-Rot,XC)
@@ -1380,7 +1373,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
     Pnew   = np.zeros([3,4,M])
     params = np.empty((7,M)) 
     for j in range (M):
-        ind1  = [x for x in range(len(u[0,:,j])) if not math.isnan(u[0,x,j])]
+        ind1  = [x for x in range(len(u[0,:,j])) if not np.isnan(u[0,x,j])]
         ind2  = [x for x in range(len(X[0,:])) if not np.any(np.isnan(X[0,x,:]))]
         ind   = np.intersect1d(ind1,ind2)
         
@@ -1491,9 +1484,9 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
     [nPts,ncams]   = umeas_mat[0,:,:].shape
     
     #NaN handling - untested in Python  
-    i2             =          [pt for pt in range(nPts) for cam in range(ncams) if math.isnan(umeas_mat[0,pt,cam])]   
+    i2             =          [pt for pt in range(nPts) for cam in range(ncams) if np.isnan(umeas_mat[0,pt,cam])]   
     nan_ind1       = np.ravel([[pt+M*nPts for M in range(ncams)] for pt in range (nPts) if pt in i2 and (ncams-i2.count(pt))<3 ])
-    nan_ind2       =          [i for i in range(nPts*ncams) if math.isnan(umeas_mat[0,:,:].flat[i])]
+    nan_ind2       =          [i for i in range(nPts*ncams) if np.isnan(umeas_mat[0,:,:].flat[i])]
     nan_ind        = np.unique(np.append(nan_ind1,nan_ind2))
 
     umeas_temp       = np.reshape(umeas_mat,[2,nPts*ncams])
@@ -1596,8 +1589,8 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     planeParams = setupPlanes(ncalplanes,z0)
     
     # generate locations of the points on each plane
-    xvec        = np.arange(-(math.floor(nx/2)),math.floor(nx/2)+1)
-    yvec        = np.arange(-(math.floor(ny/2)),math.floor(ny/2)+1)
+    xvec        = np.arange(-(np.floor(nx/2)),np.floor(nx/2)+1)
+    yvec        = np.arange(-(np.floor(ny/2)),np.floor(ny/2)+1)
     xphys       = dx*xvec
     yphys       = dy*yvec
     xmesh,ymesh = np.meshgrid(xphys,yphys)
@@ -1838,6 +1831,9 @@ def CalibrationTiff(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n
 
     #find images for calibration in multipage tiff files
     calimages = getCalibImagesTiff(datapath, camids, planedata.ncalplanes, cameradata.nframes)
+    
+    #save appropriate images in a folder and retrieve them    
+    #calimages = getCalibImagesFolder(saveCalibImagesTiff(datapath, exptpath, camids, ncalplanes, nframes), camids, ncalplanes)
     
     # call to corner finder to get 2D image plane points
     Umeas = findCorners(planedata, camids, imgs = calimages)
