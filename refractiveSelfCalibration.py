@@ -66,7 +66,7 @@ class planeData(parameters):
         elif znet:
             self.z0     = znet/(ncalplanes-1)*np.linspace(0,1,ncalplanes) #calculate origin for n evenly spaced calibration planes
         else:
-            raise Exception ("Input either z coordinates for each calibration plane (z0) or a net z traverse (znet).")                
+            raise ValueError ("Input either z coordinates for each calibration plane (z0) or a net z traverse (znet).")                
 
 class sceneData(parameters):
     #object containing parameters of the experimental setting
@@ -120,7 +120,7 @@ def getSpacedFrameInd(tiff, n, nframes = 0) :
     if not nframes:
         nframes  = tc.opentiff(tiff)._count_frames()
         if nframes == 0:
-            raise Exception ('Unable to count frames in image ' + tiff)
+            raise EOFError ('Unable to count frames in image ' + tiff)
     
     frameind = np.linspace(0,nframes-1,num=n,endpoint=True,retstep=False)
     frameind = np.uint16(frameind)
@@ -148,7 +148,7 @@ def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     # find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
-        raise Exception ("Error parsing files in " +datapath + ". Check the names of .tif files.")
+        raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
     
     # find indices of frames of tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
@@ -194,7 +194,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     # find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
-        raise Exception ("Error parsing files in " +datapath + ". Check the names of .tif files.")
+        raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
     
     # find indices of specific images in tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
@@ -208,7 +208,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
             raise Exception((str(exc)+'. Unable to create image ' +str(j) + ' in ' +i +'. ')), None, sys.exc_info()[2]
              #should work, but it plays a bit fast and loose with scope so:
         except UnboundLocalError:
-            raise exc #less specific 
+            raise  #less specific 
     
     return ical
             
@@ -507,11 +507,11 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
         cams   = sorted(glob.glob(datapath)) # folder holding image folders must be named 'calibration'
         if len(cams)<ncams:
             if not cams:
-                raise Exception ("Calibration image folder in " +datapath+" not found or empty.")
+                raise NameError ("Calibration image folder in " +datapath+" not found or empty.")
             else:    
-                raise Exception ("Not enough camera folders in "+datapath)
+                raise EOFError ("Not enough camera folders in "+datapath)
     else:
-        raise Exception ("Images not passed to corner finder. Either provide them directly (imgs argument) or provide a path to their location (datapath argument)")
+        raise ValueError ("Images not passed to corner finder. Either provide them directly (imgs argument) or provide a path to their location (datapath argument)")
     
     if exptpath:
         f = open(os.path.join(exptpath,'corners.dat'), 'w')
@@ -530,7 +530,7 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                 if imgloc == 'path':
                     files = sorted(glob.glob(os.path.join(cams[j],'*.tif')))
                     if len(files) < ncalplanes:
-                        raise Exception ("Less than " +str(ncalplanes) + " images in " + cams[j] + " folder.")
+                        raise ValueError ("Less than " +str(ncalplanes) + " images in " + cams[j] + " folder.")
                     file  = files[i]
                     I     = cv2.imread(file, 0)
                     print ('Finding corners in '+file)
@@ -581,7 +581,7 @@ def findCorners(pData, camnames, datapath = [], imgs =[], exptpath =[], show_img
                                 failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
                                 continue  #skip to next iteration  
                              
-                            raise Exception ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
+                            raise RuntimeError ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
                             
                     print (' Processing successful.')    
                                    
