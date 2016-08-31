@@ -22,7 +22,7 @@ while not configPath or not os.path.isfile(configPath):
             print ('\n' + os.path.join(configPath, path) + ' is an invalid path.')     
         
         if not os.path.isfile(configPath):           
-              path = raw_input('Input a file or folder name within ' + configPath + ', "cd" to go up a level or "exit" to quit.\n')       
+            path = raw_input('Input a file or folder name within ' + configPath + ', "cd" to go up a level or "exit" to quit.\n')       
         else:
             print ('\nFound file at:\n' +configPath)
     else:
@@ -40,20 +40,22 @@ while not configPath or not os.path.isfile(configPath):
     if len(path)>0 and path[-1] == '\t': #tab-to-complete
         name = path[:-1]
         path = '' 
+        
         if '\\' in name or '/' in name:
             print ('Please search for only one level at a time.')
-        
+            
         if len (configPath) > 0:
             places = [place for place in os.listdir(configPath) if name in place]
         else:
             print ('Please enter a directory before searching.')
+            continue
         
         if len(places) == 1:
             path = str(*places) 
             print path
         elif len(places) == 0:
             print ('No locations found in ' +configPath + ' containing ' +name)      
-        else :
+        else:
             print ('Multiple locations containing "' + name + '"' + ' in ' +configPath + ' :\n' + str(places))
     
     
