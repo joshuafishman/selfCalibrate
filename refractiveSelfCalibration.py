@@ -23,16 +23,17 @@ from mpl_toolkits.mplot3d import Axes3D #warning is inaccurate, this is used to 
 
 
 
-### This code performs the "Belden" method of self-calibration for multiple cameras in a refractive system 
+##This code performs the "Belden" method of self-calibration for multiple cameras in a refractive system 
 
 
 
-#################################     Class definitions    ##########################################
+############################Class definitions    ##########################################
 
 
 class parameters(object):    
-#basic parameter storage object
-    
+    """
+    basic parameter storage object
+    """    
     def __iter__ (self):
         for name,val in self.__dict__.iteritems():
             yield name,val
@@ -42,7 +43,7 @@ class parameters(object):
 
     @classmethod
     def getInfo (cls):
-        # get the names of input arguments passed into class and the parameters it holds (not always the same as input)
+        #get the names of input arguments passed into class and the parameters it holds (not always the same as input)
         Input = inspect.getargspec(cls.__init__)[0][1:] #get arguments passed into __init__
         
         o = object.__new__(cls)  #create a new dummy object of type (there is probably an easier way than this)
@@ -53,7 +54,9 @@ class parameters(object):
         
                                    
 class planeData(parameters):
-    #object containing parameters of the calibration planes/grids  
+    '''
+    object containing parameters of the calibration planes/grids  
+    '''
     def __init__(self,dX,dY,nX,nY,ncalplanes,znet= None, z0 = None):
         self.dX         = dX
         self.dY         = dY
@@ -68,14 +71,18 @@ class planeData(parameters):
             raise ValueError ("Input either z coordinates for each calibration plane (z0) or a net z traverse (znet).")                
 
 class sceneData(parameters):
-    #object containing parameters of the experimental setting
+    '''
+    object containing parameters of the experimental setting
+    '''
     def __init__(self,n1,n2,n3,tW,zW):
         self.n  = [n1,n2,n3]
         self.tW = tW
         self.zW = zW
 
 class cameraData(parameters):
-    #object containing parameters of the calibration images   
+    '''
+    object containing parameters of the calibration images   
+    '''
     def __init__(self,sX,sY,pitch,so,f,ncams,nframes):
         self.sX       = sX
         self.sY       = sY
@@ -90,7 +97,9 @@ class cameraData(parameters):
         self.pix_phys = None
 
 class refracTol(parameters):
-    #object containing error tolerances for solvers
+    '''
+    object containing error tolerances for solvers
+    '''
     def __init__(self,tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol):
         self.tol         = float(tol)
         self.fg_tol      = float(fg_tol)
@@ -102,20 +111,22 @@ class refracTol(parameters):
     
     
     
-########################### Multipage Tiff handling functions #####################################
+##########################Multipage Tiff handling functions #####################################
 
     
 def getSpacedFrameInd(tiff, n, nframes = 0) :
-    #Generate indices of n evenly spaced frames in a multipage tiff
-    #Inputs:
-    # tiff       - location of tiff being calibrated
-    # n          - number of indices to generate  
-    # nframes    - number of frames in each tiff -- if not provided, program will try to determine (slow) 
-    #
-    #Outputs:
-    # frameind   - indices of frames to be used for calibration
+    """
+    Generate indices of n evenly spaced frames in a multipage tiff
+     
+    :param tiff    : location of tiff being calibrated
+    :param n       : number of indices to generate  
+    :param nframes : number of frames in each tiff -- if not provided, program will try to determine (slow) 
     
-    # try to get the total number of images in each calibration file -- doesn't always work
+     
+    :returns: indices of frames to be used for calibration
+    """
+    
+    #try to get the total number of images in each calibration file -- doesn't always work
     if not nframes:
         nframes  = tc.opentiff(tiff)._count_frames()
         if nframes == 0:
@@ -127,36 +138,37 @@ def getSpacedFrameInd(tiff, n, nframes = 0) :
     return frameind
     
 def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
-    # get correct images for calibration from multipage tiff and save them in a folder called 'calibration'
-    #Inputs:
-    # datapath   - path to stored images
-    # exptpath   - path to output saved data
-    # camNames   - names of cameras to which images belong
-    # ncalplanes - number of calibration planes in images
-    # nframes    - number of frames in each tiff -- if not provided, program will try to determine
+    """
+    get correct images for calibration from multipage tiff and save them in a folder called 'calibration'
+     
+    :param datapath   : path to stored images
+    :param exptpath   :  path to output saved data
+    :param camNames   :  names of cameras to which images belong
+    :param ncalplanes :  number of calibration planes in images
+    :param nframes    :  number of frames in each tiff -- if not provided, program will try to determine
     #
-    #Outputs:
-    # Images saved in folders with the camera names inside a folder called 'calibration'
-    # outpath    - path to saved data
+      
+    :returns   :  path to saved data
+    """
     
     ncams = len (camNames)        
     cams  = glob.glob(os.path.join(datapath,'*.tif'))
     
     outpath = os.path.join(exptpath,'calibration')
     
-    # find calibration files to use
+    #find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
         raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
     
-    # find indices of frames of tiff to be used for calibration
+    #find indices of frames of tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
     
-    # setup folders by camera
+    #setup folders by camera
     for i in range(0,ncams):
         seq = tc.opentiff(img[i])
     
-        # output file details
+        #output file details
         folder = os.path.join(outpath,camNames[i])
         if not os.path.exists(folder):
             os.makedirs(folder)
@@ -176,25 +188,27 @@ def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     return outpath
 
 def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
-    # return correct images for calibration from multipage tiff 
-    #Inputs:
-    # datapath   - path to stored images
-    # camNames   - names of cameras to which images belong
-    # ncalplanes - number of calibration planes in images
-    # nframes    - number of frames in each tiff -- if not provided, program will try to determine (slow)
+    """
+    return correct images for calibration from multipage tiff 
+     
+    :param datapath   :  path to stored images
+    :param camNames   :  names of cameras to which images belong
+    :param ncalplanes :  number of calibration planes in images
+    :param nframes    :  number of frames in each tiff -- if not provided, program will try to determine (slow)
     #
-    #Outputs:
-    # ical       - images to use for calibration ([ncams[nplanes]])
+     
+    :returns       :  images to use for calibration ([ncams[nplanes]])
+    """
     
     ncams = len (camNames)        
     cams  = glob.glob(os.path.join(datapath,'*.tif'))
     
-    # find calibration files to use
+    #find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
         raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
     
-    # find indices of specific images in tiff to be used for calibration
+    #find indices of specific images in tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
     
     print ('\nFinding frames ' +str(frameind)+ ' in images '+str(img)+'\n')
@@ -210,15 +224,17 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     
     return ical
             
-def getCalibImagesFolder(datapath, camNames, ncalplanes):   
-    # return correct images for calibration from folders
-    #Inputs:
-    # datapath   - path to stored images
-    # camNames   - names of camera folders
-    # ncalplanes - number of calibration planes in images
+def getCalibImagesFolder(datapath, camNames, ncalplanes): 
+    """
+    return correct images for calibration from folders
+     
+    :param datapath   :  path to stored images
+    :param camNames   :  names of camera folders
+    :param ncalplanes :  number of calibration planes in images
     #
-    #Outputs:
-    # ical       - images to use for calibration ([ncams[nplanes]])    
+     
+    :returns       :  images to use for calibration ([ncams[nplanes]]) 
+    """
     
     cams = [y for y in glob.glob(datapath) for i in range(0, len(camNames)) if camNames[i] in y]
     try:
@@ -232,19 +248,18 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
     
     return ical
             
-################################ Corner finding functions #############################################            
+###############################Corner finding functions #################################
             
             
 def preprocess(img, t):
-    # preprocess image for better corner finding
-    #Inputs:
-    # img  - image to be preprocessed
-    # t    - limit of max of image / mean of image
-    #Outputs:
-    # img  - processed image 
-    # std  - standard deviation of image (grayscale)
-    # mu   - mean of image (grayscale)
-    # m/mu - max of image / mean of image (grayscale)
+    """
+    preprocess image for better corner finding
+     
+    :param img  :  image to be preprocessed
+    :param t    :  limit of max of image / mean of image
+     
+    :returns    :  processed image , standard deviation of image (grayscale), mean of image (grayscale), max of image / mean of image (grayscale)
+    """
     
     img = copy.copy(img)
     std, mu, m = np.std(img), np.mean(img), np.max(img)
@@ -253,19 +268,22 @@ def preprocess(img, t):
     return img, std, mu, m/mu
 
 def fixCorners(points,nX,nY, numMissing):
-    # replace missing corners in a grid of found corners and reorder them by ascending x (right), descending y (up), by row first 
-    #Inputs:
-    # points     - found points
-    # nX,nY      - number of points per row, column on grid
-    # numMissing - number of points missing 
-    #            
-    #Outputs:
-    # sPoints    - sorted full points array 
+    """
+    replace missing corners in a grid of found corners and reorder them by ascending x (right), descending y (up), by row first 
+     
+    :param points     :  found points
+    :param nX         :  number of points per row on grid
+    :param nY         :  number of points per column on grid
+    :param numMissing :  number of points missing 
+               
+     
+    :returns    :  sorted full points array 
+    """
     
     tol = .04 
     pi = np.pi 
     
-    ##### Helper functions ####
+    ####Helper functions ####
     
     #function for distance between 2 points
     dist =  lambda p1,p2: \
@@ -351,7 +369,7 @@ def fixCorners(points,nX,nY, numMissing):
     
     
     
-    ### Actual point replacement ###   
+    ##Actual point replacement 
     
     
     ret = 0
@@ -364,7 +382,7 @@ def fixCorners(points,nX,nY, numMissing):
     
     cLines = []
     
-    # find the lines y=mx + b describing the sides of the grid
+    #find the lines y=mx + b describing the sides of the grid
     for n,c in enumerate(corners): 
         for i,ang in enumerate(adjacent (c,edges,2)[1]):
             angles = [getAngle(c,e) for e in edges if abs((getAngle(c,e)-ang)) < tol*pi/2]
@@ -376,11 +394,11 @@ def fixCorners(points,nX,nY, numMissing):
     #edge lines            
     cLines = sorted (cLines, key = lambda l: abs(l[0])) #order lines by slope; should be 2 pairs of similar slope
     
-    # find corners at the intersection of lines [0,3], [0,4], [1,3], [1,4] 
+    #find corners at the intersection of lines [0,3], [0,4], [1,3], [1,4] 
     cornersFound = np.array([intersection(cLines[int(i/2)], cLines[2+i%2]) for i in range (4)])   
     
-    # add missing corners to found points array  
-    #fPoints - found points array
+    #add missing corners to found points array  
+    #fPoints :  found points array
     fPoints = np.append(points,[c for c in cornersFound if not any(np.array_equal(c,c1) for c1 in corners)], axis=0)
     
     if len(cornersFound) !=4:
@@ -435,7 +453,7 @@ def fixCorners(points,nX,nY, numMissing):
     for col in columns:
         angles = [getAngle(col[0],p) for p in col[1:]] 
         m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
-        b      = col[0][1] - m*col[0][0]   #y = mx+b
+        b      = col[0][1] -  m*col[0][0]   #y = mx+b
         colLines.append([m,b])
     if len (colLines) != nX:
         print("Wrong number of columns.")
@@ -445,7 +463,7 @@ def fixCorners(points,nX,nY, numMissing):
     for row in rows:
         angles = [getAngle(row[0],p) for p in row[1:]] 
         m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
-        b      = row[0][1] - m*row[0][0]   #y = mx+b
+        b      = row[0][1] -  m*row[0][0]   #y = mx+b
         rowLines.append([m,b])
     if len (rowLines) != nY:
         print ("Wrong number of rows.")  
@@ -470,7 +488,7 @@ def fixCorners(points,nX,nY, numMissing):
    
 
     
-    ### Reordering ###
+    ##Reordering ###
     
     #by ascending x (right), descending y (up), by row first
 
@@ -481,7 +499,7 @@ def fixCorners(points,nX,nY, numMissing):
     bottom = sorted(bottom, key = lambda p: p[0])
     
     #break the grid into vertical lines and find points on each in order
-    #sPoints - sorted points array
+    #sPoints :  sorted points array
     sPoints = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom]   
     try:    
         sPoints = np.array([sPoints[x][y] for y in range(nY) for x in range(nX)])
@@ -497,20 +515,19 @@ def fixCorners(points,nX,nY, numMissing):
     return ret, sPoints
     
 def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug = False):
-    #Find chessboard corners on grid images, either passed in directly or in a given location
-    #Inputs:
-    # camnames          - names of cameras to which images belong
-    # pData:
-    #     ncalplanes    - number of planes
-    #     nX,nY         - number of grid points per row and column on each plane
-    # exptpath          - optional; location to save a file containing corners 
-    # imgs              - array of images in which to find corners (order should be [camera[image]]).
-    # show_imgs         - boolean; plot found corners on images         
-    # debug             - boolean; if cornerfinder is failing, find out which points failed in which images          
-    #
-    #Outputs:
-    # cor_all           - 2 by nX*nY*ncalplanes by ncams array of corner coordinates
-    # saved corners.dat file containing corner coordinates on exptpath if it's provided
+    """
+    Find chessboard corners on grid images, either passed in directly or in a given location
+     
+    :param                                   :  names of cameras to which images belong
+    :param pData (contains ncalplanes, nX,nY): object containing the number of planes, number of grid points per row and column on each plane
+    :param exptpath                          :  optional; location to save a file containing corners 
+    :param imgs                              :  array of images in which to find corners (order should be [camera[image]]).
+    :param show_imgs                         :  boolean; plot found corners on images         
+    :param debug                             :  boolean; if cornerfinder is failing, find out which points failed in which images          
+    
+     
+    :returns          :  2 by nX*nY*ncalplanes by ncams array of corner coordinates 
+    """
     
     ncams         = len(camnames)
     ncalplanes    = pData.ncalplanes
@@ -533,21 +550,21 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
                 print ('Finding corners in image '+str(i+1) +' in camera ' +camnames[j])
                 
                     
-                # Find corners then refine
+                #Find corners then refine
                 ret, corners = cv2.findChessboardCorners(I,(nX,nY))
                 #print  corners.shape
                 numfound     = 0 if corners is None else len(corners) #number of corners found
                     
                 if not ret or not numfound==nX*nY: #cornerfinder failed                    
                     print (' Cornerfinder failed -- preprocessing image')
-                    Inew          = np.array(preprocess (I, 2)[0], dtype = 'uint8') # 2 is a hardcoded value
+                    Inew          = np.array(preprocess (I, 2)[0], dtype = 'uint8') #2 is a hardcoded value
                     ret, corners  = cv2.findChessboardCorners(Inew,(nX,nY))
                     corners.shape = (len(corners),1,2)
                     numfound      = 0 if corners is None else len(corners) 
                             
                     if not ret or numfound==nX*nY: #preprocessing failed
                         print (' Preprocessing failed. Reconstructing corners.')      
-                        # try to recontruct grid
+                        #try to recontruct grid
                         corners.shape = (len(corners),2)
                         ret, corners  = fixCorners(corners, nX, nY, nX*nY-numfound)
                         corners       = corners.astype('float32')
@@ -596,17 +613,17 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
                 for k in range(0,nX):                     
                     for l in range(0,nY): 
                             if (Dir>0):
-                                cor[k*nY+l] = corners[N - (k + nX*l)]
+                                cor[k*nY+l] = corners[N :  (k + nX*l)]
                             else:
                                 cor[k*nY+l] = corners[k + nX*l]                          
                 
-                # corner order is ascending x (right), ascending y (down), by column first 
+                #corner order is ascending x (right), ascending y (down), by column first 
                 cor = cor.reshape(nX*nY,2)
                 
                 #if i == 0 and j == 0:
-                #    cor_all = cor
+                #   cor_all = cor
                 #else:
-                #    cor_all = np.concatenate((cor_all,cor), axis=0)
+                #   cor_all = np.concatenate((cor_all,cor), axis=0)
         
                 cor_all[:,i*nX*nY:(i+1)*nX*nY,j] = cor.T
                 
@@ -625,22 +642,25 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
     return cor_all
 
 def getScale (u, nX, nY, dX, imgnum, camnum):
-    # get the physical size of a pixel on the grid in an image in a camera from corners
-    #Inputs:
-    # u      - corners file for all images [2xnX*nYxncams]
-    # nX,nY  - points per row, column on the grid
-    # dX     - horizontal distance between grid points
-    # imgnum - image in which to find scale
-    # camnum - camera for which to find scale
-    #    
-    #Outputs:
-    # scale  - physical size of a pixel in image
+    """
+    get the physical size of a pixel on the grid in an image in a camera from corners
+     
+    :param u      :  corners file for all images [2xnX*nYxncams]
+    :param nX     :  number of points per row on grid
+    :param nY     :  number of points per column on grid
+    :param dX     :  horizontal distance between grid points
+    :param imgnum :  image in which to find scale
+    :param camnum :  camera for which to find scale
+       
+     
+    :returns  :  physical size of a pixel in image
+    """
     
-    # get 2 points a whole row apart
+    #get 2 points a whole row apart
     p1 = u[:,nX*nY*(imgnum-1),camnum]
     p2 = u[:,nX*nY*(imgnum-1)+nY*(nX-1),camnum]
 
-    # plot a full grid of points
+    #plot a full grid of points
     figG = plt.figure('Grid Points in Camera ' +str(camnum) +', Image ' +str(imgnum))
     figG.clear()
     plt.axis([0,1280,0,800])
@@ -648,24 +668,25 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
     plt.plot([p1[0],p2[0]], [p1[1],p2[1]],'r+')
     plt.show()
     
-    scale = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)/(dX*nX)    
+    scale = np.sqrt((p1[0] -  p2[0])**2 + (p1[1] -  p2[1])**2)/(dX*nX)    
     return scale
     
     
 
-####################################### Calibration functions #############################################
+######################################Calibration functions #############################################
 
     
 def setupCamera(camData,nparam=7):
-    #Generate initial guesses for camera parameters
-    #Inputs:
-    # ncams      - number of cameras
-    # nparam     - number of parameters in model (default is 7, which is what the rest of the functions expect)
-    # camData:
-    #   a0       - magnification
+    """
+    Generate initial guesses for camera parameters
+     
+    :param ncams                       :  number of cameras
+    :param nparam                      :  number of parameters in model (default is 7, which is what the rest of the functions expect)
+    :param camData (contains a0,ncams) :  object containing magnification, number of cameras
     #
-    #Output:
-    # cam_params - nparam x ncams matrix of camera parameters
+     
+    :returns  :  nparam x ncams matrix of camera parameters
+    """
     
     a0 = camData.a0
     ncams = camData.ncams
@@ -676,13 +697,15 @@ def setupCamera(camData,nparam=7):
     return cam_params
 
 def setupPlanes(nplanes,z0):
-    #Generate initial guesses for plane parameters
-    #Inputs:
-    # nplanes      - number of planes in calibration images
-    # z0           - origin of z axis for each plane
+    """
+    Generate initial guesses for plane parameters
+     
+    :param nplanes      :  number of planes in calibration images
+    :param z0           :  origin of z axis for each plane
     #
-    #Outputs:
-    # plane_params - 6xNplanes matrix of plane parameters
+     
+    :returns :  6xNplanes matrix of plane parameters
+    """
     
     plane_params = np.zeros([6,nplanes])
     plane_params[5]=z0
@@ -690,16 +713,16 @@ def setupPlanes(nplanes,z0):
     return plane_params
     
 def planar_grid_to_world(plane_params,xyzgrid,planeData):
-    #Calculate world points based on plane parameters
-    #Inputs:
-    # plane_params - 6 x nplanes matrix of plane parameters
-    # xyzgrid      - 3 x nX*nY matrix containing points on a grid
-    # planeData:
-    #   nplanes    - number of calibration planes 
-    #   nX,nY      - number of grid points per row, column on each plane
-    #    
-    #Output:
-    # X            - World Points (3 x nX*nY*nplanes)
+    """
+    Calculate world points based on plane parameters
+     
+    :param plane_params :  6 x nplanes matrix of plane parameters
+    :param xyzgrid      :  3 x nX*nY matrix containing points on a grid
+    :param planeData (contains ncalplanes, nX,nY): object containing the number of planes, number of grid points per row and column on each plane
+     
+     
+    :returns             :  World Points (3 x nX*nY*nplanes)
+    """
     
     nplanes         = planeData.ncalplanes
     nX,nY           = planeData.nX, planeData.nY
@@ -721,14 +744,15 @@ def planar_grid_to_world(plane_params,xyzgrid,planeData):
     return X
 
 def ptnormalize(x):
-    # Rescale and shift points to improve conditioning
-    #
-    #Inputs:
-    # x     - points to be normalized (world or image)
-    #
-    #Outputs:
-    # xnorm - normalized points
-    # T     - matrix for reversing normalization
+    """
+    Rescale and shift points to improve conditioning
+    
+     
+    :param x     :  points to be normalized (world or image)
+    
+     
+    :returns     :  normalized points, matrix for reversing normalization
+    """
     
     M = x.shape[2]
 
@@ -779,13 +803,15 @@ def ptnormalize(x):
     return (xnorm,T)
 
 def P_from_DLT(X,u):
-    #Camera matrix from direct linear transform
-    #Inputs:
-    # X - 3D world points
-    # u - 2D image points
+    """
+    Camera matrix from direct linear transform
+     
+    :param X :  3D world points
+    :param u :  2D image points
     #
-    #Outputs:
-    # P - 3 x 4 x # of cameras camera matrix
+     
+    :returns  :  3 x 4 x of cameras camera matrix
+    """
     
     if len(X.shape)>2:
         p = X.shape[2]
@@ -829,24 +855,26 @@ def P_from_DLT(X,u):
             else:
                 D=np.concatenate((D,Dtmp),axis=0)
         
-        # SVD
+        #SVD
         uS,sS,vS = lin.svd(D, full_matrices=False)
         
         p = vS[11,:]
         p = np.reshape(p,[3,4])
         
-        # Decondition
+        #Decondition
         P[:,:,j]=np.dot(np.dot(lin.inv(T[:,:,j]),p),U[:,:,j])
         P[:,:,j]=P[:,:,j]/P[2,3,j]
         
     return P
 
 def cam_decomp(p):
-    #Camera center by SVD
-    #Inputs:
-    # p - camera matrix
-    #Outputs:
-    # C - coordinates of camera center
+    """
+    Camera center by SVD
+     
+    :param p :  camera matrix
+     
+    :returns :  coordinates of camera center
+    """
     
     u,s,v=lin.svd(p, full_matrices=True)
     C = v[3,:]/v[3,3]
@@ -854,80 +882,80 @@ def cam_decomp(p):
     return C
 
 def f_eval_1eq(r1,r2,z1,z2,n1,n2):
-    #evaluate ray tracing function, gradients for one refractive equation (snell's law with 2 media)
-    #Inputs:
-    # n1,2     - indices of refraction
-    # r1,2     - length of ray in each refractive medium
-    # z1,2     - z coordinate of ray intersection with each medium
+    """
+    evaluate ray tracing function, gradients for one refractive equation (snell's law with 2 media)
+     
+    :param n1,2     :  indices of refraction
+    :param r1,2     :  length of ray in each refractive medium
+    :param z1,2     :  z coordinate of ray intersection with each medium
     #
-    #Outputs:
-    # f        - output of ray tracing equation for one refractive interface
-    # df_dr1   - derivative of f with regards to r1
+     
+    :returns        :  output of ray tracing equation for one refractive interface, derivative of f with regards to r1
+    """
     
     r1,r2,z1,z2,n1,n2 = np.array([r1,r2,z1,z2,n1,n2])+0. #convert all values to floats
 
     f      = (r1)/np.sqrt(r1**2 + z1**2) \
-             - (n2/n1)*(r2-r1)/np.sqrt((r2-r1)**2 + z2**2)
+             -  (n2/n1)*(r2-r1)/np.sqrt((r2-r1)**2 + z2**2)
 
-    df_dr1 = 1/np.sqrt(r1**2 + z1**2) - r1**2/(r1**2 + z1**2)**(3./2) \
+    df_dr1 = 1/np.sqrt(r1**2 + z1**2) -  r1**2/(r1**2 + z1**2)**(3./2) \
              + (n2/n1)/np.sqrt(z2**2 + (r1-r2)**2) \
-             - (n2/n1)*(r1-r2)*(2*r1-2*r2)/(2*((r1-r2)**2 + z2**2)**(3./2))
+             -  (n2/n1)*(r1-r2)*(2*r1-2*r2)/(2*((r1-r2)**2 + z2**2)**(3./2))
 
     return (f,df_dr1)
 
 def f_eval_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3):
-    # evaluate ray tracing function, gradients for 2 refractive equations in (snell's law with 3 media) 
-    #Inputs:
-    # n1,2,3     - indices of refraction
-    # r1,2,3     - length of ray in each refractive medium
-    # z1,2,3     - z coordinate of ray intersection with each medium
+    """
+    evaluate ray tracing function, gradients for 2 refractive equations in (snell's law with 3 media) 
+     
+    :param n1,2,3     :  indices of refraction
+    :param r1,2,3     :  length of ray in each refractive medium
+    :param z1,2,3     :  z coordinate of ray intersection with each medium
     #
-    #Outputs:
-    # f          - first ray tracing equation for 2 refractive interfaces
-    # g          - second ray tracing equation for 2 refractive interfaces
-    # df_dr1     - derivative of f with regards to r1
-    # dg_dr1     - derivative of g with regards to r1
+     
+    :returns          :  output of first ray tracing equation for 2 refractive interfaces, output of second ray tracing equation for 2 refractive interfaces, derivative of f with regards to r1, derivative of g with regards to r1
+    """
     
     [r1,r2,r3,z1,z2,z3,n1,n2,n3]=np.array([r1,r2,r3,z1,z2,z3,n1,n2,n3])+0. #convert all values to floats
     
     f = (r1)/np.sqrt(r1**2. + z1**2.) \
-        - (n2/n1)*(r2-r1)/np.sqrt((r2-r1)**2. + z2**2.)
+        -  (n2/n1)*(r2-r1)/np.sqrt((r2-r1)**2. + z2**2.)
 
     df_dr1 = 1./np.sqrt(r1**2. + z1**2.) \
-             - r1**2./((r1**2. + z1**2.)**(3./2.)) \
+             -  r1**2./((r1**2. + z1**2.)**(3./2.)) \
              + (n2/n1)/np.sqrt(z2**2. + (r1-r2)**2.) \
-             - (n2/n1)*(r1-r2)*(2.*r1-2.*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.))
+             -  (n2/n1)*(r1-r2)*(2.*r1-2.*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.))
 
     df_dr2 = (n2/n1)*(r1-r2)*(2.*r1-2.*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.)) \
-             - (n2/n1)/np.sqrt(z2**2. + (r1-r2)**2.)
+             -   (n2/n1)/np.sqrt(z2**2. + (r1-r2)**2.)
 
 
     g      = (r2-r1)/np.sqrt((r2-r1)**2. + z2**2.) \
-             - (n3/n2)*(r3-r2)/np.sqrt((r3-r2)**2. + z3**2.)
+             -   (n3/n2)*(r3-r2)/np.sqrt((r3-r2)**2. + z3**2.)
 
     dg_dr1 = (r1-r2)*(2*r1-2*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.)) \
-             - 1./np.sqrt(z2**2. + (r1-r2)**2.)
+             -   1./np.sqrt(z2**2. + (r1-r2)**2.)
 
     dg_dr2 = 1./np.sqrt((r1-r2)**2. + z2**2.) \
              + (n3/n2)/np.sqrt(z3**2 + (r2-r3)**2.) \
-             - (r1-r2)*(2.*r1-2.*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.)) \
-             - (n3/n2)*(r2-r3)*(2.*r2-2.*r3)/(2.*((r2-r3)**2. + z3**2.)**(3./2.))
+             -   (r1-r2)*(2.*r1-2.*r2)/(2.*((r1-r2)**2. + z2**2.)**(3./2.)) \
+             -   (n3/n2)*(r2-r3)*(2.*r2-2.*r3)/(2.*((r2-r3)**2. + z3**2.)**(3./2.))
 
     return (f,df_dr1,df_dr2,g,dg_dr1,dg_dr2)
 
 def NR_1eq(r1,r2,z1,z2,n1,n2,tol):
-    #Newton-Raphson Iteration for 1 equation (only 2 refractive media i.e. neglecting tank wall)
-    #Inputs:
-    # maxIter    - max # of iterations for solver
-    # n1,2       - indices of refraction
-    # r1,2       - length of ray in each refractive medium
-    # z1,2       - z coordinate of ray intersection with each medium
-    # tol        - object containing tolerances for solver
+    """
+    Newton-Raphson Iteration for 1 equation (only 2 refractive media i.e. neglecting tank wall)
+     
+    :param maxIter    :  max of iterations for solver
+    :param n1,2       :  indices of refraction
+    :param r1,2       :  length of ray in each refractive medium
+    :param z1,2       :  z coordinate of ray intersection with each medium
+    :param tol        :  object containing tolerances for solver
     #
-    #Outputs:
-    # r1new      - length of ray from source to tank wall
-    # Iter       - number of iterations for solution
-    # max_err_r1 - maximum error in solution
+     
+    :returns      :  length of ray from source to tank wall, number of iterations for solution, maximum error in solution
+    """
     
     r1new      = r1
     Iter       = 0
@@ -936,7 +964,7 @@ def NR_1eq(r1,r2,z1,z2,n1,n2,tol):
     while max_err_r1 > tol:
         r1_old     = r1new
         f,df_r1    = f_eval_1eq(r1_old,r2,z1,z2,n1,n2) #evaluate snell's law equation
-        r1new      = r1_old - f/df_r1
+        r1new      = r1_old -   f/df_r1
         err_r1     = abs(r1new-r1_old)
         Iter       = Iter + 1
         max_err_r1 = err_r1.max()
@@ -944,20 +972,18 @@ def NR_1eq(r1,r2,z1,z2,n1,n2,tol):
     return (r1new,Iter,max_err_r1)
 
 def NR_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
-    #Newton-Raphson iteration to solve the refractive imaging model for 2 equations (3 refractive media - air-tank-wall)
-    #Inputs:
-    # maxIter    - max # of iterations for solver
-    # n1,2,3     - indices of refraction
-    # r1,2,3     - length of ray in each refractive medium
-    # z1,2,3     - z coordinate of ray intersection with each medium
-    # tol        - max error tolerance
+    """
+    Newton-Raphson iteration to solve the refractive imaging model for 2 equations (3 refractive media :  air-tank-wall)
+     
+    :param maxIter    :  max of iterations for solver
+    :param n1,2,3     :  indices of refraction
+    :param r1,2,3     :  length of ray in each refractive medium
+    :param z1,2,3     :  z coordinate of ray intersection with each medium
+    :param tol        :  max error tolerance
     #
-    #Outputs:
-    # r1new      - length of ray from source to tank wall
-    # r2new      - length of ray in tank wall
-    # Iter       - number of iterations for solution
-    # max_err_r1 - maximum error in solution for r1
-    # max_err_r2 - maximum error in solution for r2
+     
+    :returns:           length of ray from source to tank wall, length of ray in tank wall, number of iterations for solution, maximum error in solution for r1, maximum error in solution for r2
+    """
     
     r1new      = r1
     r2new      = r2
@@ -972,13 +998,13 @@ def NR_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
         #evaluate snell's law equations
         f,df_dr1,df_dr2,g,dg_dr1,dg_dr2 = f_eval_2eq(r1_old,r2_old,r3,z1,z2,z3,n1,n2,n3)
 
-        denom = (df_dr1*dg_dr2 - df_dr2*dg_dr1)
-        r1new = r1_old - (f*dg_dr2 - g*df_dr2)/denom
-        r2new = r2_old - (g*df_dr1 - f*dg_dr1)/denom
+        denom = (df_dr1*dg_dr2 -   df_dr2*dg_dr1)
+        r1new = r1_old -   (f*dg_dr2 -   g*df_dr2)/denom
+        r2new = r2_old -   (g*df_dr1 -   f*dg_dr1)/denom
         
         Iter   = Iter + 1
-        err_r1 = abs(r1new - r1_old)
-        err_r2 = abs(r2new - r2_old)
+        err_r1 = abs(r1new -   r1_old)
+        err_r2 = abs(r2new -   r2_old)
 
         max_err_r1 = err_r1.max()
         max_err_r2 = err_r2.max()
@@ -986,34 +1012,36 @@ def NR_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
     return (r1new,r2new,Iter,max_err_r1,max_err_r2)
 
 def f_refrac(r1,r2,r3,z1,z2,n1,n2):
-    #model refraction with 3 refractive media (snell's law)
-    #Inputs:
-    # n1,2       - indices of refraction (assume one index is 1)
-    # r1,2,3     - length of ray in each refractive medium
-    # z1,2       - z coordinate of ray intersection with each medium
-    # 
-    #Outputs:
-    # f          - output of snell's law equation (ideally 0)
+    """
+    model refraction with 3 refractive media (snell's law)
+     
+    :param n1,2       :  indices of refraction (assume one index is 1)
+    :param r1,2,3     :  length of ray in each refractive medium
+    :param z1,2       :  z coordinate of ray intersection with each medium
+    
+     
+    :returns          :  output of snell's law equation (ideally 0)
+    """
     
     [r1,r2,r3,z1,z2,n1,n2]=np.array([r1,r2,r3,z1,z2,n1,n2])+0. #convert all values to floats
     
     f = (r2-r1) / np.sqrt((r2-r1)**2.0 + z1**2.0)   \
-        - (n2/n1) * (r3-r2) / np.sqrt((r3-r2)**2.0 + z2**2.0)
+        -   (n2/n1) * (r3-r2) / np.sqrt((r3-r2)**2.0 + z2**2.0)
 
     return f
 
 def bisection(r2L,r2U,r1,r3,z1,z2,n1,n2,tol):
-    # Bisection solver for 3 media refractive imaging model for 1 ray length
-    #Inputs:
-    # n1,2       - indices of refraction (assume one index is 1)
-    # r1,2L,2U,3 - lengths of ray in each medium (2 in wall b/c for forwards and reverse ray tracing)
-    # z1,2       - z coordinate of ray intersection with each medium
-    # tol        - object containing tolerances for solver
-    #    
-    #Outputs:
-    # r2f        - length of ray in second medium
-    # Iter       - number of iterations to arrive at solution
-    # err_r2f    - maximum error in solution
+    """
+    Bisection solver for 3 media refractive imaging model for 1 ray length
+     
+    :param n1,2       :  indices of refraction (assume one index is 1)
+    :param r1,2L,2U,3 :  lengths of ray in each medium (2 in wall for forwards and reverse ray tracing)
+    :param z1,2       :  z coordinate of ray intersection with each medium
+    :param tol        :  object containing tolerances for solver
+       
+     
+    :returns        :  length of ray in second medium, number of iterations to arrive at solution, maximum error in solution
+    """
     
     Iter       = 0
     r2         = np.array([r2L,r2U]) 
@@ -1030,16 +1058,16 @@ def bisection(r2L,r2U,r1,r3,z1,z2,n1,n2,tol):
         
         r2=np.array([r2o[0,:] , 0.5*(r2o[0,:]+r2o[1,:])])
                 
-        fL         = f_refrac(r1,r2[0,:],r3,z1,z2,n1,n2) # output of snell's law function for forwards ray tracing (ideally 0)
-        fU         = f_refrac(r1,r2[1,:],r3,z1,z2,n1,n2) # output of snell's law function for reverse ray tracing  (ideally 0)
+        fL         = f_refrac(r1,r2[0,:],r3,z1,z2,n1,n2) #output of snell's law function for forwards ray tracing (ideally 0)
+        fU         = f_refrac(r1,r2[1,:],r3,z1,z2,n1,n2) #output of snell's law function for reverse ray tracing  (ideally 0)
 
         if np.any(np.less_equal(fL*fU,0)):
             ind        = np.array([x for x in range (len (fL*fU)) if fL[x]*fU[x] < 0])
             r2[:,ind]  = np.array([0.5*(r2o[0,ind]+r2o[1,ind]) , r2o[1,ind]])
-            fL         = f_refrac(r1,r2[0,:],r3,z1,z2,n1,n2) # output of snell's law function for forwards ray tracing (ideally 0)
-            fU         = f_refrac(r1,r2[1,:],r3,z1,z2,n1,n2) # output of snell's law function for reverse ray tracing  (ideally 0)
+            fL         = f_refrac(r1,r2[0,:],r3,z1,z2,n1,n2) #output of snell's law function for forwards ray tracing (ideally 0)
+            fU         = f_refrac(r1,r2[1,:],r3,z1,z2,n1,n2) #output of snell's law function for reverse ray tracing  (ideally 0)
 
-        err = (abs(r2[0,:] - r2[1,:])) # forwards and reverse ray tracing should yield same values             
+        err = (abs(r2[0,:] -  r2[1,:])) #forwards and reverse ray tracing should yield same values             
         i2      = [x for x in range (len (err)) if (err)[x] < tol]
         i3      = [x for x in range (len (fL*fU)) if fL[x]*fU[x] > 0]
         i4      = np.union1d(i2,i3).astype(int)
@@ -1047,25 +1075,25 @@ def bisection(r2L,r2U,r1,r3,z1,z2,n1,n2,tol):
         if np.any(i4):
             ind_rem          = i1[i4]
             r2f[ind_rem]     = (r2[0,i4] + r2[1,i4])/2
-            err_r2f[ind_rem] = abs(r2[0,i4] - r2[1,i4])/2
+            err_r2f[ind_rem] = abs(r2[0,i4] -   r2[1,i4])/2
             for l in [r1,r2[0],r2[1],z1,fL,fU,i1]:
                 l=np.delete(l,i4)
               
     return r2f,Iter,err_r2f
 
 def refrac_solve_bisec(r10,r20,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
-    # Use repeated bisection to solve 3 media refractive imaging model for 2 ray lengths
-    #Inputs:
-    # maxIter    - max # of iterations for solver
-    # n1,2,3     - indices of refraction
-    # r10,20,3   - length of ray in each refractive medium
-    # z1,2,3     - z coordinate of ray intersection with each medium
-    # tol        - object containing tolerances for solver
-    #    
-    #Outputs:
-    # r1n        - length of ray in air (wall to camera)
-    # r2n        - length of ray in wall
-    # Iter       - iterations to arrive at solutions
+    """
+    Use repeated bisection to solve 3 media refractive imaging model for 2 ray lengths
+     
+    :param maxIter    :  max of iterations for solver
+    :param n1,2,3     :  indices of refraction
+    :param r10,20,3   :  length of ray in each refractive medium
+    :param z1,2,3     :  z coordinate of ray intersection with each medium
+    :param tol        :  object containing tolerances for solver
+       
+     
+    :returns        : length of ray in air (wall to camera), length of ray in wall, iterations to arrive at solutions
+    """
     
     r1     = r10
     r2     = r20
@@ -1107,26 +1135,23 @@ def refrac_solve_bisec(r10,r20,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
                 l=np.delete(l,i4)
      
     if Iter == maxIter:
-        warnings.warn('Warning: max # iterations reached in refrac_solve_bisec',stacklevel=2)
+        warnings.warn('Warning: max iterations reached in refrac_solve_bisec',stacklevel=2)
     
     return [r1n,r2n,Iter]
 
 def img_refrac(XC,X,spData,rTol):
-    # Models refractive imaging of points into camera array, using iterative solvers
+    """
+    Models refractive imaging of points into camera array, using iterative solvers
     #
-    # INPUTS:
-    # XC            - 3 x 1 vector containing the coordinates of the camera's center of projection (COP)
-    # X             - 3 x N vector containing the coordinates of each point
-    # rTol          - object containing tolerances for solver 
-    # spData:       - scene data 
-    #        Zw     - Z coordinate of wall 
-    #        n      - index of refraction of air, glass and water
-    #        tW     - wall thickness
+    INPUTS:
+    :param XC            :  3 x 1 vector containing the coordinates of the camera's center of projection (COP)
+    :param X             :  3 x N vector containing the coordinates of each point
+    :param rTol          :  object containing tolerances for solver 
+    :param spData (contains zW, n, tW):       :  scene data object containing Z coordinate of wall, indices of refraction of air, glass and water, and wall thickness
     #
-    # OUTPUTS:
-    # XB            - 3 x N vector containing the coordinates where the ray from each point intersects the air-facing side of the interface (wall)
-    # rB            - radial distance of points in XB from the Z axis (length of ray to wall)
-    # max_err_rB    - maximum error in solution of RB
+    OUTPUTS:
+    :returns : 3 x N vector containing the coordinates where the ray from each point intersects the air-facing side of the interface (wall), radial distance of points in XB from the Z axis (length of ray to wall), maximum error in solution of RB
+    """
     
     Npts     = X.shape[1]
     XC.shape = (3,1) #make sure this is a 3X1 array
@@ -1157,14 +1182,14 @@ def img_refrac(XC,X,spData,rTol):
     max_err_rB=np.zeros(Npts)  
     
     
-    # solve the refractve equations (snell's law) for the length of the ray in each medium
-    if t==0: # no wall thickness -> no ray in wall -> only 2 media
+    #solve the refractve equations (snell's law) for the length of the ray in each medium
+    if t==0: #no wall thickness -> no ray in wall -> only 2 media
         rB = rP
         #indices of out-of-tank and in-tank points
         i1 = np.array([x for x in range (Npts) if z3[x] ==0])
         i2 = np.array([x for x in range (Npts) if z3[x] not in i1])
         
-        # use Newton-Raphson iteration to solve the refractive equation for the rays from the wall to the camera
+        #use Newton-Raphson iteration to solve the refractive equation for the rays from the wall to the camera
         rB[i2] = NR_1eq(rB0[i2],rP[i2],z1[i2],z3[i2],n1,n3,rTol.tol)[0]
 
         if np.any(np.isnan(rB)):
@@ -1199,11 +1224,11 @@ def img_refrac(XC,X,spData,rTol):
             fcheck[i1] = f_eval_1eq(rB[i1],rP[i1],z1[i1],z2[i1],n1,n2)[0]
 
 
-        # use Newton-Raphson iteration to solve the refractive equation for the rays from the wall to the camera and in the wall 
+        #use Newton-Raphson iteration to solve the refractive equation for the rays from the wall to the camera and in the wall 
         rB[i2], rD[i2], Iter, max_err_rB[i2], max_err_rD = NR_2eq(rB0[i2],rD0[i2],rP[i2],z1[i2],z2[i2],z3[i2],n1,n2,n3,rTol.tol,rTol.maxiter)
 
 
-        # If N-R doesn't converge => use bisection
+        #If N-R doesn't converge => use bisection
         if np.any(np.isnan(rB)) or np.any(np.isinf(rB)):         
             
             i1 = np.array([x for x in range (Npts) if z3[x] < rTol.z3_tol])            
@@ -1238,14 +1263,15 @@ def img_refrac(XC,X,spData,rTol):
     return (XB,rB,max_err_rB)
 
 def P_from_params (cam_params,caData):
-    # camera matrix from parameters
-    #Input:
-    # cam_params      - camera parameters
-    # caData:         - camera data
-    #   shiftx,shifty - difference between origin of image coordinates and center of image plane
+    """
+    camera matrix from parameters
+     
+    :param cam_params                          :  camera parameters
+    :param caData (contains shiftx,shifty)     :  camera data object containing difference between origin of image coordinates and center of image plane
     #
-    #Output:
-    # P               - camera matrix
+     
+    :returns : camera matrix
+    """
     
     P = np.zeros([3,4])
     
@@ -1280,23 +1306,25 @@ def P_from_params (cam_params,caData):
     return P
     
 def refrac_proj(X,P,spData,rTol, Ind =[]):
-    # Given M camera pinhole matrices and the coordinates of a world point,
-    # project the world point to image points in each camera.
-    #
-    #Inputs:
-    # P           - 3x4xM matrix of pinhole camera matrices
-    # X           - 3xNpts vector containing coordinates of world points
-    # SpData:     - imaging system parameters 
-    # rTol        - object containing tolerances for solvers
-    # Ind         - indices of out-of-tank points (so no refraction)
-    #
-    #Outputs:
-    # u           - 2 x Npts x M matrix of non-homogeneous image points
+    """
+    Given M camera pinhole matrices and the coordinates of a world point,
+    project the world point to image points in each camera.
+    
+     
+    :param P            :  3x4xM matrix of pinhole camera matrices
+    :param X            :  3xNpts vector containing coordinates of world points
+    :param SpData       :  Object containing imaging system parameters 
+    :param  rTol        :  object containing tolerances for solvers
+    :param  Ind         :  indices of out-of-tank points (so no refraction)
+     #
+      
+     :returns           :  2 x Npts x M matrix of non-homogeneous image points
+     """
 
     ncams = np.shape(P)[2] 
     ind   = [i for i in range(len(X[2])) if i not in Ind] #in-tank points
     
-    # Project the points into the cameras.
+    #Project the points into the cameras.
     u =np.empty([2,len(X[0]),ncams])
     for j in range(ncams):      
         XC = cam_decomp(P[:,:,j])  #find camera centers
@@ -1313,16 +1341,18 @@ def refrac_proj(X,P,spData,rTol, Ind =[]):
     return u
     
 def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
-    # This function projects the 3D world points to image coordinates in one camera using 7 camera parameters
-    #Inputs:
-    # cam_params  - camera parameters
-    # X           - 4xN matrix of world points,
-    # spData:     - imaging system parameters (scene data)
-    # caData      - camera data (unpacked later)
-    # rTol        - object containing tolerances for solvers
+    """
+    This function projects the 3D world points to image coordinates in one camera using 7 camera parameters
+     
+    :param cam_params  :  camera parameters
+    :param X           :  4xN matrix of world points,
+    :param spData:     :  object containing imaging system parameters (scene data)
+    :param caData      :  object containing camera data (unpacked later)
+    :param rTol        :  object containing tolerances for solvers
     #
-    #Outputs:
-    # u           - 2xN matrix of image points
+     
+    :returns           :  2xN matrix of image points
+    """
     
     
     P       = P_from_params (cam_params,caData) #camera matrix   
@@ -1332,26 +1362,27 @@ def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
     return u
       
 def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False,print_err=False,print_data=False):
-    # This function finds the best-fit camera model by minimizing the
-    # sum of squared differences of the (known) world points projected into
-    # cameras and the measured images of these points.  The minimization is
-    # done using a non-linear least squares Lev-Marq solver
+    """    
+    This function finds the best-fit camera model by minimizing the
+    sum of squared differences of the (known) world points projected into
+    cameras and the measured images of these points.  The minimization is
+    done using a non-linear least squares Lev-Marq solver
     #
-    #Inputs:
-    # u                     - 2 x N x M matrix containing N measured 2D image plane points 
-    # par0                  - 3 x 4 x M initial guess for the camera matrix (Later I will change this to be refreaction model)
-    # X                     - 3 x N x M matrix containing intial guesses for the 3D world point coordinates
-    # sD                    - scene data (unpacked later)
-    # cD                    - camera data (unpacked later)
-    # rTol                  - object containing tolerances
-    # maxFev                - max number of iterations for optimizer
-    # maxfunc_dontstop_flag - run until solution is found if 'on'
-    # print_err             - boolean; Print pre- and post-optimization error
-    # print_data            - boolean; Print initial and final camera parameters   
+     
+    :param u                     :  2 x N x M matrix containing N measured 2D image plane points 
+    :param par0                  :  3 x 4 x M initial guess for the camera matrix (Later I will change this to be refreaction model)
+    :param X                     :  3 x N x M matrix containing intial guesses for the 3D world point coordinates
+    :param sD                    :  object containing scene data (unpacked later)
+    :param cD                    :  object containing camera data (unpacked later)
+    :param rTol                  :  object containing tolerances
+    :param maxFev                :  max number of iterations for optimizer (optional)
+    :param maxfunc_dontstop_flag :  run until solution is found if 'on'
+    :param print_err             :  boolean; Print pre- and post-optimization error
+    :param print_data            :  boolean; Print initial and final camera parameters   
     #
-    #Outputs:
-    # Pnew                  - 3 x 4 x M best-fit camera matrix
-    # params                - 7xM array of best-fit parameters
+     
+    :returns                  :  3 x 4 x M best-fit camera matrix, 7xM array of best-fit parameters
+    """
 
     m_eval=maxFev
     
@@ -1384,13 +1415,13 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
         stop_flag=True
         while stop_flag:
             stop_flag = False
-            # assume refractive model
+            #assume refractive model
             
             #utest = refrac_proj_onecam(par0[:,j],Xtemp,sD,cD,rTol) #test for img_refrac and refrac_proj_onecam                   
             
             try:       
-                # project the guessed world points through the camera model and adjust 
-                # the camera parameters to fit the output to the measured image points   
+                #project the guessed world points through the camera model and adjust 
+                #the camera parameters to fit the output to the measured image points   
                        
                 bound=[] #bounds for optimization -- uncomment below to use (bounded optimization can't use the lm method)
                 #bound=[[-np.inf for x in range (len(par0[:,j]))],[np.inf for x in range (len(par0[:,j]))]]
@@ -1398,7 +1429,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
                 #[bound[0][6], bound[1][6]]= [par0[6,j],par0[6,j]*2]
                 
                 f = lambda x,*p: np.ravel(refrac_proj_onecam(np.array(p),x,sD,cD,rTol))
-                # curve_fit needs a function that takes the independent variable as the first argument and the parameters to fit as separate remaining arguments, which the lambda function provides    
+                #curve_fit needs a function that takes the independent variable as the first argument and the parameters to fit as separate remaining arguments, which the lambda function provides    
                                
                 if any (bound):                    
                     params[:,j]  =   scipy.optimize.curve_fit(f, Xtemp, umeas, par0[:,j], max_nfev=m_eval,verbose=1,bounds=bound)[0]
@@ -1408,7 +1439,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
                                    
             except RuntimeError: #the minimizer hit its max eval count without converging
                 if maxfunc_dontstop_flag: 
-                    # double the max eval count and try again
+                    #double the max eval count and try again
                     m_eval=2*m_eval
                     stop_flag=True
                 else:
@@ -1433,57 +1464,59 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
    
 
 def planar_grid_adj (planeParams,P,xyzgrid,spData,planeData,rTol):
-    # Given M camera pinhole matrices and the coordinates of a world point,
-    # project the world point to image points in each camera.
+    """
+    Given M camera pinhole matrices and the coordinates of a world point,
+    project the world point to image points in each camera.
     #
-    #Inputs:
-    # P             - 3 x 4 x ncams camera parameter matrix
-    # xyzgrid       - 3 x N matrix of points on the grid
-    # rTol          - object containing tolerances  
-    # spData:
-    #       Zw      - Z coordinate of wall 
-    #       tW      - wall thickness
-    # planeData     - basic quantities associated with calibration images (unpacked later)
-    #    
-    #Outputs:
-    # u             - 2xN matrix of non-homogeneous image points
+     
+    :param P             :  3 x 4 x ncams camera parameter matrix
+    :param xyzgrid       :  3 x N matrix of points on the grid
+    :param rTol          :  object containing tolerances  
+    :param spData (contains Zw, tW): object containing Z coordinate of wall, wall thickness 
+    :param planeData     :  object containing basic quantities associated with calibration images (unpacked later)
+       
+     
+    :returns             :  2xN matrix of non-homogeneous image points
+    """
     
     Zw, t = spData.zW, spData.tW
     
-    # Calculate the world points based on the plane parameters
+    #Calculate the world points based on the plane parameters
     X = planar_grid_to_world(planeParams,xyzgrid,planeData)
     
     Ind = [x for x in range( len(X[2]) ) if X[2,x] < (Zw+t)] #out-of-tank points
     
-    # Project the points into the cameras.
+    #Project the points into the cameras.
     u = refrac_proj(X,P,spData,rTol,Ind)
     
     return u
 
 def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,print_err=False,print_data=False):
-    # This function finds the best-fit world point location by minimizing the
-    # sum of squares of the point projected into (known) cameras.  The
-    # minimization is done using a non-linear least squares Lev-Marq solver
+    """    
+    This function finds the best-fit world point location by minimizing the
+    sum of squares of the point projected into (known) cameras.  The
+    minimization is done using a non-linear least squares Lev-Marq solver
     #
-    #Inputs:
-    # umeas_mat           - 2 x Npts x ncams matrix containing N measured image points in M
-    #                       cameras.  If any camera doesn't see a point, NaN's should be in place of
-    #                       the points.
-    # P                   - 3 x 4 x ncams camera matrix for M cameras 
-    # xyzgrid             - 3 x Npts matrix of points on a grid
-    # plane_params0       - initial guess for plane parameters (6 rows, nPlanes columns)
-    # rTol                - object containing tolerances  
-    # spData              - basic quantities associated with experiment (unpacked later)
-    # planeData           - basic quantities associated with calibration images (unpacked later)
-    # print_err           - boolean; Print pre- and post- optimization error
-    # print_data          - boolean; Print initial and final plane parameters 
-    #    
-    #Outputs:
-    # plane_params        - optimized plane parameters
+     
+    :param umeas_mat           :  2 x Npts x ncams matrix containing N measured image points in M
+                                 cameras.  If any camera doesn't see a point, NaN's should be in place of
+                                 the points.
+    :param P                   :  3 x 4 x ncams camera matrix for M cameras 
+    :param xyzgrid             :  3 x Npts matrix of points on a grid
+    :param plane_params0       :  initial guess for plane parameters (6 rows, nPlanes columns)
+    :param rTol                :  object containing tolerances  
+    :param spData              :  object containing basic quantities associated with experiment (unpacked later)
+    :param planeData           :  object containing basic quantities associated with calibration images (unpacked later)
+    :param print_err           :  boolean; Print pre- and post- optimization error
+    :param print_data          :  boolean; Print initial and final plane parameters 
+       
+     
+    :returns        :  optimized plane parameters
+    """
     
     [nPts,ncams]   = umeas_mat[0,:,:].shape
     
-    #NaN handling - untested in Python  
+    #NaN handling :  untested in Python  
     i2             =          [pt for pt in range(nPts) for cam in range(ncams) if np.isnan(umeas_mat[0,pt,cam])]   
     nan_ind1       = np.ravel([[pt+M*nPts for M in range(ncams)] for pt in range (nPts) if pt in i2 and (ncams-i2.count(pt))<3 ])
     nan_ind2       =          [i for i in range(nPts*ncams) if np.isnan(umeas_mat[0,:,:].flat[i])]
@@ -1498,10 +1531,10 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
     ngridpts              = len(xyzgrid[0,:])
     nplanes               = len(planeParams0[0,:])
     
-    # curve_fit needs a function that accepts parameters individually and 1D arrays for dependent and independent variables, so the lambda function reshapes arguments for/from planar_grid_adj
+    #curve_fit needs a function that accepts parameters individually and 1D arrays for dependent and independent variables, so the lambda function reshapes arguments for/from planar_grid_adj
     f = lambda xyz, *params: planar_grid_adj(np.array([params[p*nplanes:(p+1)*nplanes] for p in range(6)]), P, np.array([xyz[:ngridpts], xyz[ngridpts:2*ngridpts], xyz[2*ngridpts:]]), spData, planeData, rTol).flatten()                                           
     
-    # fit projected image points to the measured image points by adjusting plane parameters and projecting resulting world points to image plane
+    #fit projected image points to the measured image points by adjusting plane parameters and projecting resulting world points to image plane
     planeParamsFlat = scipy.optimize.curve_fit(f, np.ravel(xyzgrid), np.ravel(umeas_temp), np.ravel(planeParams0))[0]    
     
     #reshape 1D output     
@@ -1528,52 +1561,44 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
 
     
 def reprojError (umeas,P,xPts,spData,rTol):
-    # Calculate pointwise and mean reprojection errors given camera matrices and plane parameters
-    #Inputs:
-    # umeas         - 3xNptsxNcams array of measured image points
-    # P             - 3x4xM matrix of pinhole camera matrices
-    # xPts          - 3xNpts array of world points
-    # spData        - basic quantities associated with experiment (unpacked later)
-    # rTol          - tolerances for solvers
-    #    
-    #Outputs:
-    # rep_err       - NptsxNcams array of reprojection error for each point 
-    # rep_epp_mean  - Ncams array of mean reprojection error for each cameras
+    """
+    Calculate pointwise and mean reprojection errors given camera matrices and plane parameters
+     
+    :param umeas         :  3xNptsxNcams array of measured image points
+    :param P             :  3x4xM matrix of pinhole camera matrices
+    :param xPts          :  3xNpts array of world points
+    :param spData        :  object containing basic quantities associated with experiment (unpacked later)
+    :param rTol          :  tolerances for solvers
+       
+     
+    :returns       :  NptsxNcams array of reprojection error for each point, Ncams array of mean reprojection error for each cameras
+    """
     
     uReproj      = refrac_proj(xPts,P,spData,rTol)
-    # image points reprojected from world points
+    #image points reprojected from world points
     
     rep_err      = np.transpose([[np.abs(pX-pU) for pX,pU in itertools.izip(mX,mU)] for mX,mU in itertools.izip(np.transpose(uReproj),np.transpose(umeas))]) 
-    # reprojection error for each point in each camera    
+    #reprojection error for each point in each camera    
     
     rep_err_mean = [np.mean(err) for err in np.transpose(rep_err)]
-    # mean reprojection error for each camera    
+    #mean reprojection error for each camera    
     
     return (rep_err,rep_err_mean)
 
 
 def selfCalibrate (umeas, pData, camData, scData, tols):
-    # Carry out the autocalibration process    
-    #Inputs:
-    # Umeas        - 2xNxncams array of image points in each camera
-    # pData:       - plane data object
-    #   dX,dY      - spacing between points on the plane
-    #   nX,nY      - number of points in each row/column on the plane
-    #   ncalplanes - number of planes
-    #   z0         - origin for position of each calibration plane in millimeters
-    # camData:     - camera data object
-    #   so         - distance of cameras from tank (mm)
-    #   ncams      - number of cameras being calibrated
-    # scData:      - scene data object 
-    # tols:        - tolerances object 
-    #   maxiter    - max number of iterations for optimizers
-    #   rep_err_tol- acceptable refraction error
+    """
+    Carry out the autocalibration process    
+     
+    :param Umeas                                       :  2xNxncams array of image points in each camera
+    :param pData (contains dX,dY,nX,nY,ncalplanes,z0)  :  plane data object conatining, spacing between points on the plane, number of points in each row/column on the plane, number of planes, origin for position of each calibration plane in millimeters
+    :param camData (contains so,ncams)                 :  camera data object containing, distance of cameras from tank (mm), number of cameras being calibrated
+    :param scData                                      :  scene data object 
+    :param tols (contains maxiter, rep_err_tol)        :  tolerances object containing max number of iterations for optimizers, acceptable refraction error
     #
-    #Outputs:
-    # P            - camera matrix for each camera (3 x 4 x ncams)
-    # camParams    - parameters for each camera (7 x ncams)
-    # Xworld       - world points
-    # planeParams  - parameters for each calibration plane (6 x ncalplanes)
+     
+    :returns            :  camera matrix for each camera (3 x 4 x ncams), parameters for each camera (7 x ncams), world points, parameters for each calibration plane (6 x ncalplanes)
+    """
     
     dx         = pData.dX
     dy         = pData.dY
@@ -1584,11 +1609,11 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     so         = camData.so  
     ncams      = camData.ncams
    
-    # generate initial guesses for parameters 
+    #generate initial guesses for parameters 
     camParams   = setupCamera(camData)
     planeParams = setupPlanes(ncalplanes,z0)
     
-    # generate locations of the points on each plane
+    #generate locations of the points on each plane
     xvec        = np.arange(-(np.floor(nx/2)),np.floor(nx/2)+1)
     yvec        = np.arange(-(np.floor(ny/2)),np.floor(ny/2)+1)
     xphys       = dx*xvec
@@ -1599,13 +1624,13 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     xy_phys     = np.concatenate((xmesh,ymesh),axis=0)
     xyz_phys    = np.concatenate((xy_phys,np.zeros([1,nx*ny])),axis=0)
     
-    # initial grid to world points
+    #initial grid to world points
     Xworld = planar_grid_to_world(planeParams,xyz_phys,pData) 
     
-    # estimate initial camera matrix by DLT
+    #estimate initial camera matrix by DLT
     P = P_from_DLT(Xworld,umeas)
     
-    # get camera parameters based on P estimate
+    #get camera parameters based on P estimate
     for aa in range (0,ncams):              
         C                 = cam_decomp(P[:,:,aa]) #calculate camera centers      
         camParams[0:3,aa] = C
@@ -1620,7 +1645,7 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     rep_err,rep_err_mean[0]      = reprojError(umeas,P,Xworld,scData,tols) 
     
 
-    # AUTOCALIBRATION LOOP 
+    ### AUTOCALIBRATION LOOP ###
     Iter= 0 
     while np.any(rep_err_mean[Iter] > tols.rep_err_tol*np.ones(ncams)) and Iter < tols.maxiter and rep_err_diff < -1*tols.rep_err_tol/10 :
          print ('\n\nIteration ' + str(Iter+1)+'\nInitial mean reprojection error in each camera= ' +str(rep_err_mean[Iter]))
@@ -1637,7 +1662,7 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
          
          print ('\n Change in mean reprojection error: '+str(rep_err_diff))
          
-         if rep_err_diff > 0: # mean reprojection error should reaally be decreasing each iteration
+         if rep_err_diff > 0: #mean reprojection error should reaally be decreasing each iteration
              warnings.warn('\nReprojection error increasing in iteration ' +str(Iter),stacklevel=3)
 
     
@@ -1654,17 +1679,18 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
 
 
 
-############################# Save and display data functions #################################
+############################Save and display data functions #################################
 
 
 def showCalibData(ccoords, X, zW): 
-    #display calibration results
-    #Inputs:
-    # ccoords  - xoordinates of camera centers
-    # X        - world points
-    # zW       - z coordinate of wall
-    #Outputs:
-    # plots world points and camera locations in 3D, with a sample of the wall
+    """
+    display calibration results
+     
+    :param ccoords  :  xoordinates of camera centers
+    :param X        :  world points
+    :param zW       :  z coordinate of wall
+     
+    """
     
     #plot world points and camera locations 
     fig = plt.figure('Camera and Grid Locations',figsize=(8,7))
@@ -1682,39 +1708,34 @@ def showCalibData(ccoords, X, zW):
     plt.show()
 
 def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
+    """
     #Save calibration data
-    #Inputs:
-    # exptpath - path on which data should be saved
-    # camnames - names of cameras to which data belongs
-    # p        - 3 x 4 x number of cameras array of camera matrices 
-    # cparams  - parameters from which the matrices were contructed
-    # err      - reprojection error in each camera
-    # scdata:  - scene data object
-    #   zW     - z coordinate of the wall
-    #   tW     - wall thickness
-    #   n[]    - indices of refraction
-    # camdata: - camera data object
-    #   sX,sY  - size of image
-    #   mpix   - 1/size of a pixel
-    # name     - name of file to save data as
+     
+    :param exptpath :  path on which data should be saved
+    :param camnames :  names of cameras to which data belongs
+    :param p        :  3 x 4 x number of cameras array of camera matrices 
+    :param cparams  :  parameters from which the matrices were contructed
+    :param err      :  reprojection error in each camera
+    :param scdata   :  scene data object
+    :param camdata  :  camera data object 
+    :param name     :  name of file to save data as
     #
-    #Outputs:
-    # saves data on the experiment path
-    # f - file to which data was saved (closed)
-    
+      
+    :returns: file to which data was saved (closed)
+    """    
     
     #save data on the experiment path
     with open(os.path.join(exptpath, name+'.txt'),'w') as f:        
-        # Printing dummy timestamp
+        #Printing dummy timestamp
         f.write('---Dummy Timestamp---\n')
         
-        # Average reprojection error
+        #Average reprojection error
         f.write('{}\n'.format(np.mean(err)))
         
-        # Image size and physical to pixel conversion factor
+        #Image size and physical to pixel conversion factor
         f.write('{:d}\t{:d}\t{}\n'.format(int(camdata.sX), int(camdata.sY), camdata.pix_phys))
         
-        # P matrices
+        #P matrices
         sizeP = np.shape(p)
         f.write('{:d}\n'.format(int(sizeP[2])))
         for n in range(sizeP[2]):
@@ -1730,60 +1751,59 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
                 f.write('{:.15f}\t'.format(cparams[i][n]))
             f.write('\n')
         
-        # Refractive flag
+        #Refractive flag
         f.write('{}\n'.format('1'))
 
-        # Refractive geometry paramters
+        #Refractive geometry paramters
         f.write('{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\n'.format(scdata.zW, scdata.tW, scdata.n[0], scdata.n[1], scdata.n[2]))
         
         #f.write('Camera Matrices\n')
         #for c in range(len(camnames)):
-        #    f.write(camnames[c]+'\n')
-        #    np.savetxt(f,p[:,:,c],delimiter=', ',fmt='%f')            
+           #f.write(camnames[c]+'\n')
+           #np.savetxt(f,p[:,:,c],delimiter=', ',fmt='%f')            
         #f.write('\n\nCamera Parameters\n')
         #for c in range(len(camnames)):
-        #    f.write(camnames[c]+'\n')
-        #    np.savetxt(f,cparams[:,c],delimiter=', ',fmt='%f')
+           #f.write(camnames[c]+'\n')
+           #np.savetxt(f,cparams[:,c],delimiter=', ',fmt='%f')
         #f.write('\n\nWorld Points\n')
         #np.savetxt(f,X,delimiter=', ',fmt='%f')
         
-        return f  # file will close when with statement terminates
+        return f  #file will close when with statement terminates
 
 
 
-####################################### General functions ##############################################################
+######################################General functions ##############################################################
 
 
 def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,):
-    # setup experimental parameter storage objects
+    """
+    setup experimental parameter storage objects
     #
-    #Inputs:
-    # n1,2,3      - indices of refraction of 3 media in system    
-    # dx,dy       - spacing of grid points on calibration grid    
-    # nx,ny       - number of grid points in each row, column on grid
-    # pix_pitch   - pixel pitch (size of a pixel)    
-    # so          - distance of cameras from tank    
-    # f           - focal length of the lens    
-    # tW          - tank wall thickness (2nd refractive medium)
-    # sx,sy       - dimensions of images being calibrated
-    # zw          - z coordinate of wall in coordinate system being used  
-    # ncalplanes  - number of planes 
-    # znet        - total traverse of calibration plate in millimeters (used to calculate origin of ncalplanes evenly spaced planes)
-    # ncams       - number of cameras
-    # nframes     - number of frames in calibration video/tiff -- optional, but preferrable to provide
-    # tol         - tolerance for Newton-Raphson snell's law solver 
-    # fg_tol      - tolerance for output of snell's law function
-    # maxiter     - max number of iterations for solvers
-    # bi_tol      - tolerance for bifurcation snell's law solver
-    # bi_maxiter  - max number of iterations for bifurcation snell's law solver
-    # z3_tol      - tolerance for distance of grid points from tank wall
-    # rep_Err_Tol - tolerance for final reprojection error 
+     
+    :param n1,2,3      :  indices of refraction of 3 media in system    
+    :param dx,dy       :  spacing of grid points on calibration grid    
+    :param nx,ny       :  number of grid points in each row, column on grid
+    :param pix_pitch   :  pixel pitch (size of a pixel)    
+    :param so          :  distance of cameras from tank    
+    :param f           :  focal length of the lens    
+    :param tW          :  tank wall thickness (2nd refractive medium)
+    :param sx,sy       :  dimensions of images being calibrated
+    :param zw          :  z coordinate of wall in coordinate system being used  
+    :param ncalplanes  :  number of planes 
+    :param znet        :  total traverse of calibration plate in millimeters (used to calculate origin of ncalplanes evenly spaced planes)
+    :param ncams       :  number of cameras
+    :param nframes     :  number of frames in calibration video/tiff -- optional, but preferrable to provide
+    :param tol         :  tolerance for Newton-Raphson snell's law solver 
+    :param fg_tol      :  tolerance for output of snell's law function
+    :param maxiter     :  max number of iterations for solvers
+    :param bi_tol      :  tolerance for bifurcation snell's law solver
+    :param bi_maxiter  :  max number of iterations for bifurcation snell's law solver
+    :param z3_tol      :  tolerance for distance of grid points from tank wall
+    :param rep_Err_Tol :  tolerance for final reprojection error 
     #
-    #Outputs:
-    # planedata   - object containing parameters of the calibration planes/grids
-    # cameradata  - object containing parameters of the calibration images
-    # scenedata   - object containing parameters of the experimental setting
-    # tolerances  - object containing error tolerances for solvers
+     
+    :returns: object containing parameters of the calibration planes/grids, object containing parameters of the calibration images, object containing parameters of the experimental setting, object containing tolerances for solvers
+    """
     
     planedata   = planeData(dx,dy,nx,ny,ncalplanes,znet)
     cameradata  = cameraData(sx,sy,pix_pitch,so,f,ncams,nframes)
@@ -1793,61 +1813,66 @@ def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes
     return planedata, cameradata, scenedata, tolerances
     
     
-def CalibrationTiff(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, datapath, exptpath, camids) :
-    # Carry out the refractive autocalibration process from beginning to end, using multipage tiffs 
+def CalibrationTiff( datapath, exptpath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0) :
+    """
+    Carry out the refractive autocalibration process from beginning to end, using multipage tiffs 
     #
-    #Inputs:
-    # datapath    - Path to stored images
-    # exptpath    - Path for saved output
-    # camids      - Names of cameras being calibrated    
-    # n1,2,3      - indices of refraction of 3 media in system    
-    # dx,dy       - spacing of grid points on calibration grid    
-    # nx,ny       - number of grid points in each row, column on grid
-    # pix_pitch   - pixel pitch (size of a pixel)    
-    # so          - distance of cameras from tank    
-    # f           - focal length of the lens    
-    # tW          - tank wall thickness (2nd refractive medium)
-    # sx,sy       - dimensions of images being calibrated
-    # zw          - z coordinate of wall in coordinate system being used    
-    # znet        - total traverse of calibration plate in millimeters 
-    # ncalplanes  - number of planes 
-    # nframes     - number of frames in calibration video/tiff -- optional, but preferrable to provide
-    # tol         - tolerance for Newton-Raphson snell's law solver 
-    # fg_tol      - tolerance for output of snell's law function
-    # maxiter     - max number of iterations for solvers
-    # bi_tol      - tolerance for bifurcation snell's law solver
-    # bi_maxiter  - max number of iterations for bifurcation snell's law solver
-    # z3_tol      - tolerance for distance of grid points from tank wall
-    # rep_Err_Tol - tolerance for final reprojection error 
-    #
-    #Output:
-    # plotted world points and camera locations, with a sample of the wall  
-    # file containing camera parameters, camera matrices, world points and plane parameters, saved on exptpath 
+     
+    :param datapath    :  Path to stored images
+    :param exptpath    :  Path for saved output
+    :param camids      :  Names of cameras being calibrated    
+    :param n1,2,3      :  indices of refraction of 3 media in system    
+    :param dx,dy       :  spacing of grid points on calibration grid    
+    :param nx,ny       :  number of grid points in each row, column on grid
+    :param pix_pitch   :  pixel pitch (size of a pixel)    
+    :param so          :  distance of cameras from tank    
+    :param f           :  focal length of the lens    
+    :param tW          :  tank wall thickness (2nd refractive medium)
+    :param sx,sy       :  dimensions of images being calibrated
+    :param zw          :  z coordinate of wall in coordinate system being used    
+    :param znet        :  total traverse of calibration plate in millimeters 
+    :param ncalplanes  :  number of planes 
+    :param nframes     :  number of frames in calibration video/tiff -- optional, but preferrable to provide
+    :param tol         :  tolerance for Newton-Raphson snell's law solver 
+    :param fg_tol      :  tolerance for output of snell's law function
+    :param maxiter     :  max number of iterations for solvers
+    :param bi_tol      :  tolerance for bifurcation snell's law solver
+    :param bi_maxiter  :  max number of iterations for bifurcation snell's law solver
+    :param z3_tol      :  tolerance for distance of grid points from tank wall
+    :param rep_Err_Tol :  tolerance for final reprojection error 
+    :param image_type  :  storage format for images: "multi" for multipage tiff or "folder" for individual images in folders 
+       
+     
+    """ 
     
     ncams = len(camids) #get number of cameras
     
-    # setup experimental parameter storage objects
+    #setup experimental parameter storage objects
     planedata, cameradata, scenedata, tolerances  = setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,)
-
-    #find images for calibration in multipage tiff files
-    calimages = getCalibImagesTiff(datapath, camids, planedata.ncalplanes, cameradata.nframes)
     
-    #save appropriate images in a folder and retrieve them    
-    #calimages = getCalibImagesFolder(saveCalibImagesTiff(datapath, exptpath, camids, ncalplanes, nframes), camids, ncalplanes)
+    if image_type == "multi" :
+        #find images for calibration in multipage tiff files
+        calimages = getCalibImagesTiff(datapath, camids, planedata.ncalplanes, cameradata.nframes)
+    elif image_type == "folder" : 
+        #save appropriate images in a folder and retrieve them    
+        calimages = getCalibImagesFolder(datapath, camids, planedata.ncalplanes)
+    else:
+        raise ValueError ("Invalid image_type flag.")
     
-    # call to corner finder to get 2D image plane points
+    
+    #call to corner finder to get 2D image plane points
     Umeas = findCorners(planedata, camids, imgs = calimages)
       
-    # find correct camera and plane parameters
+    #find correct camera and plane parameters
     p,camparams,xworld,planeparams,reperror = selfCalibrate(Umeas, planedata, cameradata, scenedata, tolerances)
     
-    # display data
+    #display data
     showCalibData(camparams[:3], xworld, scenedata.zW)
     
     #get the scale of the images
     cameradata.pix_phys = getScale(Umeas, planedata.nX, planedata.nY, planedata.dX, int(planedata.ncalplanes/2), int(ncams/2)) 
      
-    # save data
+    #save data
     print ('\n\nData saved in '+ str(saveCalibData(exptpath, camids, p, camparams, reperror, scenedata, cameradata, 'Calibration_Results')))
 
 
