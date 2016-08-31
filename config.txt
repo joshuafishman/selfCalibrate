@@ -1,19 +1,13 @@
 #Path to stored images
-dataPath: 'E:'
+dataPath: 'calbelow'
 
 #Path for saved output
-exptPath: 'E:'
+exptPath: 'testoutput'
 
 #Names of cameras being calibrated
 camIDs: 
     - BL
-    - BCL
-    - BCR
     - BR
-    - TL
-    - TCL
-    - TCR
-    - TR
 
 #indices of refraction
 n1: 1.0
@@ -45,16 +39,16 @@ sX: 1280
 sY: 800
 
 #z coordinate of wall
-zW: -90 #should be negative
+zW: -80 #should be negative
 
 #total traverse of calibration plate in millimeters
 znet: 254
 
 #number of calibration planes to use from images 
-nCalPlanes: 9
+nCalPlanes: 10
 
 #number of frames in calibration tiff -- optional, but preferrable to provide
-nFrames   : 1076
+nFrames: 763
 
 #tolerances
 tol: 1.5e-8
@@ -64,3 +58,6 @@ bi_tol : 1e-3
 bi_maxiter: 1000
 z3_tol: 1e-3
 rep_err_tol: .05
+
+#storage format for images: "multi" for multipage tiff or "folder" for individual images in folders 
+image_type: "multi"
