@@ -206,7 +206,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     #find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
-        raise ValueError ("Error: Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
+        raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
     
     #find indices of specific images in tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
@@ -217,7 +217,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
         ical   = [[tc.opentiff(i).find_and_read(frameind[j]) for j in range(ncalplanes)] for i in img]  
     except Exception as exc:     
         try: #whoooah meta
-            raise Exception((str(exc)+'. Unable to create image ' +str(j) + ' in ' +i +'. ')), None, sys.exc_info()[2]
+            raise Exception((str(exc)+'. Unable to read image ' +str(j) + ' in ' +i +'. ')), None, sys.exc_info()[2]
              #should work, but it plays a bit fast and loose with scope so:
         except UnboundLocalError:
             raise  #less specific 
@@ -233,15 +233,19 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
     :param ncalplanes :  number of calibration planes in images
     #
      
-    :returns       :  images to use for calibration ([ncams[nplanes]]) 
+    :returns       : greyscale images to use for calibration ([ncams[nplanes]]) 
     """
+    ncams = len (camNames) 
     
-    cams = [y for y in glob.glob(datapath) for i in range(0, len(camNames)) if camNames[i] in y]
+    img = [glob.glob(os.path.join(datapath,y,'*.*')) for y in os.listdir(datapath) for i in range(0, ncams) if camNames[i] in y]
+    if not len (img) == ncams:
+        raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
+    
     try:
-        ical   = [[cv2.imread(glob.glob(c)[j]) for j in range(ncalplanes)] for c in cams]  
-    except EOFError as exc:     
+        ical   = [[cv2.imread(i[j],0) for j in range(ncalplanes)] for i in img]  
+    except IndexError as exc:     
         try: #whoooah meta
-            raise EOFError ("Only "+ str(j)+ "images in " + os.path.abspath(c) + "; Need " + str(ncalplanes) )
+            raise EOFError ("Only "+ str(j)+ " images in " + os.path.abspath(i) + "; Need " + str(ncalplanes) )
              #should work, but it plays a bit fast and loose with scope so:
         except UnboundLocalError:
             raise exc #less specific 
@@ -271,7 +275,7 @@ def fixCorners(points,nX,nY, numMissing):
     """
     replace missing corners in a grid of found corners and reorder them by ascending x (right), descending y (up), by row first 
      
-    :param points     :  found points
+    :param points     :  found grid points
     :param nX         :  number of points per row on grid
     :param nY         :  number of points per column on grid
     :param numMissing :  number of points missing 
@@ -1193,7 +1197,7 @@ def img_refrac(XC,X,spData,rTol):
         rB[i2] = NR_1eq(rB0[i2],rP[i2],z1[i2],z3[i2],n1,n3,rTol.tol)[0]
 
         if np.any(np.isnan(rB)):
-            rdummy              = np.zeros(1,len(i1))
+            rdummy              = np.zeros((1,len(i1)))
             #use bisection to solve the refractive equation for the rays from the wall to the camera
             rB[i2] = bisection(rB0[i2],rP[i2],rdummy,rP[i2],z1[i2],z3[i2],n1,n3,rTol.bi_tol)[0]
 
@@ -1614,8 +1618,8 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     planeParams = setupPlanes(ncalplanes,z0)
     
     #generate locations of the points on each plane
-    xvec        = np.arange(-(np.floor(nx/2)),np.floor(nx/2)+1)
-    yvec        = np.arange(-(np.floor(ny/2)),np.floor(ny/2)+1)
+    xvec        = np.arange(-(np.floor(nx/2)),np.floor(nx/2)+1) if nx%2!=0 else np.arange(-(np.floor(nx/2)-.5),np.floor(nx/2)-.5+1)
+    yvec        = np.arange(-(np.floor(ny/2)),np.floor(ny/2)+1) if ny%2!=0 else np.arange(-(np.floor(ny/2)-.5),np.floor(ny/2)-.5+1)
     xphys       = dx*xvec
     yphys       = dy*yvec
     xmesh,ymesh = np.meshgrid(xphys,yphys)
@@ -1813,7 +1817,7 @@ def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes
     return planedata, cameradata, scenedata, tolerances
     
     
-def Calibration( datapath, exptpath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0) :
+def Calibration( datapath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0, exptpath=None) :
     """
     Carry out the refractive autocalibration process from beginning to end, using multipage tiffs 
     #
@@ -1843,9 +1847,15 @@ def Calibration( datapath, exptpath, camids, image_type, dx,dy,nx,ny,ncalplanes,
     :param image_type  :  storage format for images: "multi" for multipage tiff or "folder" for individual images in folders 
        
      
-    """ 
-    
+    """    
     ncams = len(camids) #get number of cameras
+    
+    if exptpath is None:
+        exptpath = datapath
+    if not os.path.isdir(datapath):
+        raise ValueError ("Bad Datapath.")
+    if not os.path.isdir(exptpath):
+        raise ValueError ("Bad Exptpath.")
     
     #setup experimental parameter storage objects
     planedata, cameradata, scenedata, tolerances  = setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,)
