@@ -18,32 +18,26 @@ def parseConfig (conf):
     :returns:    list of correctly ordered arguments for Calibration
     """
     
-    conf_low = {name.lower(): value for name,value in conf.iteritems()} #config file must have exactly correct variable names, ignoring case
+    conf_low = {name.lower(): value for name,value in conf.iteritems()}  #case-independently-named config parameters
+    values   = []                                                        #list to be filled with ordered arguments for calibration
+    args     = inspect.getargspec(refractiveSelfCalibration.Calibration) #names of arguments for calibration
+    numopt   = len(args[3])                                              #number of optional arguments
     
-    args = inspect.getargspec(refractiveSelfCalibration.Calibration) #arguments for calibration
-    values = []
-    
-    try:
-        
-        for name in args[0][:-len(args[3])]:   #non-optional values
+    for n,name in enumerate(args[0]):   
+        try:
             if name.lower() in ['datapath','exptpath','camids', 'image_type']: #these values should be strings
-                values.append(conf_low[name])
+                values.append(conf_low[name.lower()])
             else:
-                values.append(float(conf_low[name]))  #make sure everything that's supposed to be a number is
+                values.append(float(conf_low[name.lower()]))  #make sure everything that's supposed to be a number is
         
-        for name in args[0][-len(args[3]):]:   #optional values
-            try:
-                if name.lower() in ['datapath','exptpath','camids', 'image_type']: #these values should be strings
-                    values.append(conf_low[name.lower()])
-                else:
-                    values.append(float(conf_low[name.lower()]))  #make sure everything that's supposed to be a number is
-            except KeyError:
-                continue
-        
-    except KeyError:
-        raise KeyError ("Missing " + name + " value in config file.")
-    except ValueError:             
-        raise ValueError (name + ' has an invalid value.')
+        except KeyError:
+            if n >= len(args[0])-numopt: #optional argument
+                continue #if value was not provided ignore it
+            else:                        #non-optional argument
+                raise KeyError ("Missing " + name + " value in config file.")
+                
+        except ValueError:             
+            raise ValueError (name + ' has an invalid value.')
     
     return values
     
