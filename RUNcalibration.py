@@ -34,7 +34,7 @@ def parseConfig (conf):
             if n >= len(args[0])-numopt: #optional argument
                 continue #if value was not provided ignore it
             else:                        #non-optional argument
-                raise KeyError ("Missing " + name + " value in config file.")
+                raise KeyError ("Missing " + name + " value in config.")
                 
         except ValueError:             
             raise ValueError (name + ' has an invalid value.')
