@@ -18,15 +18,24 @@ configPath = parser.parse_args().configPath
 #config file must have exactly correct variable names
 with open(configPath , 'r') as f: 
     config = yaml.load(f)
+    
+#these are the expected variables in config. Order matters.
+if config['image_type'] == 'multi':            
+    argnames = ["dataPath","exptPath","camIDs","image_type","dX","dY","nX","nY","nCalPlanes","znet","n1","n2","n3","tW","zW","tol","fg_tol","maxiter","bi_tol","bi_maxiter","z3_tol","rep_err_tol","sX","sY","pix_Pitch","so","f","nFrames"]
+else:
+    argnames = ["dataPath","exptPath","camIDs","image_type","dX","dY","nX","nY","nCalPlanes","znet","n1","n2","n3","tW","zW","tol","fg_tol","maxiter","bi_tol","bi_maxiter","z3_tol","rep_err_tol","sX","sY","pix_Pitch","so","f"]
 
-for name,var in config.iteritems():
-    if name not in ['dataPath','exptPath','camIDs']: #these values should be strings
-        try:
-            config[name] = float(var) #make sure everything that's supposed to be a number is
-        except:
-            raise ValueError (name + ' has an invalid value.')
-              
-globals().update(config) #add all the variables in the config file to the global namespace
+values = []
+for name in argnames:   
+    try:
+        if name in ['dataPath','exptPath','camIDs', 'image_type']: #these values should be strings
+            values.append(config[name])
+        else:
+            values.append(float(config[name]))  #make sure everything that's supposed to be a number is
+    except KeyError:
+        raise KeyError ("Missing " + name + " value in config file.")
+    except ValueError:             
+        raise ValueError (name + ' has an invalid value.')
 
-refractiveSelfCalibration.CalibrationTiff(dX,dY,nX,nY,nCalPlanes,znet, sX,sY,pix_Pitch,so,f,nFrames, n1,n2,n3,tW,zW, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, dataPath, exptPath, camIDs)
+refractiveSelfCalibration.Calibration(*values)
 
