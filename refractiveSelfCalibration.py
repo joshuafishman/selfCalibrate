@@ -200,13 +200,13 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     :returns       :  images to use for calibration ([ncams[nplanes]])
     """
     
-    ncams = len (camNames)        
+    ncams = len (camNames)      
     cams  = glob.glob(os.path.join(datapath,'*.tif'))
     
     #find calibration files to use
     img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
-        raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
+        raise ValueError ("Error: Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
     
     #find indices of specific images in tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
@@ -239,12 +239,12 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
     cams = [y for y in glob.glob(datapath) for i in range(0, len(camNames)) if camNames[i] in y]
     try:
         ical   = [[cv2.imread(glob.glob(c)[j]) for j in range(ncalplanes)] for c in cams]  
-    except EOFError:     
+    except EOFError as exc:     
         try: #whoooah meta
-            raise EOFError ("Only "+ str(j)+ "images in " + c + "; Need " + str(ncalplanes) )
+            raise EOFError ("Only "+ str(j)+ "images in " + os.path.abspath(c) + "; Need " + str(ncalplanes) )
              #should work, but it plays a bit fast and loose with scope so:
         except UnboundLocalError:
-            raise  #less specific 
+            raise exc #less specific 
     
     return ical
             
@@ -1813,7 +1813,7 @@ def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes
     return planedata, cameradata, scenedata, tolerances
     
     
-def CalibrationTiff( datapath, exptpath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0) :
+def Calibration( datapath, exptpath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0) :
     """
     Carry out the refractive autocalibration process from beginning to end, using multipage tiffs 
     #
