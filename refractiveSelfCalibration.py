@@ -27,7 +27,7 @@ from mpl_toolkits.mplot3d import Axes3D #warning is inaccurate, this is used to 
 
 
 
-############################Class definitions    ##########################################
+############################   Class definitions    ##########################################
 
 
 class parameters(object):    
@@ -111,7 +111,7 @@ class refracTol(parameters):
     
     
     
-##########################Multipage Tiff handling functions #####################################
+########################## Multipage Tiff handling functions #####################################
 
     
 def getSpacedFrameInd(tiff, n, nframes = 0) :
@@ -146,7 +146,7 @@ def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     :param camNames   :  names of cameras to which images belong
     :param ncalplanes :  number of calibration planes in images
     :param nframes    :  number of frames in each tiff -- if not provided, program will try to determine
-    #
+    
       
     :returns   :  path to saved data
     """
@@ -195,7 +195,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     :param camNames   :  names of cameras to which images belong
     :param ncalplanes :  number of calibration planes in images
     :param nframes    :  number of frames in each tiff -- if not provided, program will try to determine (slow)
-    #
+    
      
     :returns       :  images to use for calibration ([ncams[nplanes]])
     """
@@ -204,7 +204,7 @@ def getCalibImagesTiff(datapath, camNames, ncalplanes, nframes = 0):
     cams  = glob.glob(os.path.join(datapath,'*.tif'))
     
     #find calibration files to use
-    img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
+    img = [y for name in camNames for y in cams if name in y]
     if not len (img) == ncams:
         raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
     
@@ -231,15 +231,15 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
     :param datapath   :  path to stored images
     :param camNames   :  names of camera folders
     :param ncalplanes :  number of calibration planes in images
-    #
+    
      
     :returns       : greyscale images to use for calibration ([ncams[nplanes]]) 
     """
     ncams = len (camNames) 
+    img = [glob.glob(os.path.join(datapath,f,'*.*')) for name in camNames for f in os.listdir(datapath) if name in f ]
     
-    img = [glob.glob(os.path.join(datapath,y,'*.*')) for y in os.listdir(datapath) for i in range(0, ncams) if camNames[i] in y]
     if not len (img) == ncams:
-        raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
+        raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the folder names.")
     
     try:
         ical   = [[cv2.imread(i[j],0) for j in range(ncalplanes)] for i in img]  
@@ -252,7 +252,7 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
     
     return ical
             
-###############################Corner finding functions #################################
+############################## Corner finding functions #################################
             
             
 def preprocess(img, t):
@@ -617,7 +617,7 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
                 for k in range(0,nX):                     
                     for l in range(0,nY): 
                             if (Dir>0):
-                                cor[k*nY+l] = corners[N :  (k + nX*l)]
+                                cor[k*nY+l] = corners[N - (k + nX*l)]
                             else:
                                 cor[k*nY+l] = corners[k + nX*l]                          
                 
@@ -677,7 +677,7 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
     
     
 
-######################################Calibration functions #############################################
+##################################### Calibration functions #############################################
 
     
 def setupCamera(camData,nparam=7):
@@ -687,7 +687,7 @@ def setupCamera(camData,nparam=7):
     :param ncams                       :  number of cameras
     :param nparam                      :  number of parameters in model (default is 7, which is what the rest of the functions expect)
     :param camData (contains a0,ncams) :  object containing magnification, number of cameras
-    #
+    
      
     :returns  :  nparam x ncams matrix of camera parameters
     """
@@ -706,7 +706,7 @@ def setupPlanes(nplanes,z0):
      
     :param nplanes      :  number of planes in calibration images
     :param z0           :  origin of z axis for each plane
-    #
+    
      
     :returns :  6xNplanes matrix of plane parameters
     """
@@ -751,10 +751,8 @@ def ptnormalize(x):
     """
     Rescale and shift points to improve conditioning
     
-     
     :param x     :  points to be normalized (world or image)
     
-     
     :returns     :  normalized points, matrix for reversing normalization
     """
     
@@ -812,7 +810,7 @@ def P_from_DLT(X,u):
      
     :param X :  3D world points
     :param u :  2D image points
-    #
+    
      
     :returns  :  3 x 4 x of cameras camera matrix
     """
@@ -892,7 +890,7 @@ def f_eval_1eq(r1,r2,z1,z2,n1,n2):
     :param n1,2     :  indices of refraction
     :param r1,2     :  length of ray in each refractive medium
     :param z1,2     :  z coordinate of ray intersection with each medium
-    #
+    
      
     :returns        :  output of ray tracing equation for one refractive interface, derivative of f with regards to r1
     """
@@ -915,7 +913,7 @@ def f_eval_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3):
     :param n1,2,3     :  indices of refraction
     :param r1,2,3     :  length of ray in each refractive medium
     :param z1,2,3     :  z coordinate of ray intersection with each medium
-    #
+    
      
     :returns          :  output of first ray tracing equation for 2 refractive interfaces, output of second ray tracing equation for 2 refractive interfaces, derivative of f with regards to r1, derivative of g with regards to r1
     """
@@ -956,7 +954,7 @@ def NR_1eq(r1,r2,z1,z2,n1,n2,tol):
     :param r1,2       :  length of ray in each refractive medium
     :param z1,2       :  z coordinate of ray intersection with each medium
     :param tol        :  object containing tolerances for solver
-    #
+    
      
     :returns      :  length of ray from source to tank wall, number of iterations for solution, maximum error in solution
     """
@@ -984,7 +982,7 @@ def NR_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
     :param r1,2,3     :  length of ray in each refractive medium
     :param z1,2,3     :  z coordinate of ray intersection with each medium
     :param tol        :  max error tolerance
-    #
+    
      
     :returns:           length of ray from source to tank wall, length of ray in tank wall, number of iterations for solution, maximum error in solution for r1, maximum error in solution for r2
     """
@@ -1146,14 +1144,12 @@ def refrac_solve_bisec(r10,r20,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
 def img_refrac(XC,X,spData,rTol):
     """
     Models refractive imaging of points into camera array, using iterative solvers
-    #
-    INPUTS:
+ 
     :param XC            :  3 x 1 vector containing the coordinates of the camera's center of projection (COP)
     :param X             :  3 x N vector containing the coordinates of each point
     :param rTol          :  object containing tolerances for solver 
     :param spData (contains zW, n, tW):       :  scene data object containing Z coordinate of wall, indices of refraction of air, glass and water, and wall thickness
-    #
-    OUTPUTS:
+    
     :returns : 3 x N vector containing the coordinates where the ray from each point intersects the air-facing side of the interface (wall), radial distance of points in XB from the Z axis (length of ray to wall), maximum error in solution of RB
     """
     
@@ -1272,7 +1268,7 @@ def P_from_params (cam_params,caData):
      
     :param cam_params                          :  camera parameters
     :param caData (contains shiftx,shifty)     :  camera data object containing difference between origin of image coordinates and center of image plane
-    #
+    
      
     :returns : camera matrix
     """
@@ -1320,10 +1316,10 @@ def refrac_proj(X,P,spData,rTol, Ind =[]):
     :param SpData       :  Object containing imaging system parameters 
     :param  rTol        :  object containing tolerances for solvers
     :param  Ind         :  indices of out-of-tank points (so no refraction)
-     #
+     
       
-     :returns           :  2 x Npts x M matrix of non-homogeneous image points
-     """
+    :returns           :  2 x Npts x M matrix of non-homogeneous image points
+    """
 
     ncams = np.shape(P)[2] 
     ind   = [i for i in range(len(X[2])) if i not in Ind] #in-tank points
@@ -1353,7 +1349,7 @@ def refrac_proj_onecam(cam_params,X,spData,caData,rTol):
     :param spData:     :  object containing imaging system parameters (scene data)
     :param caData      :  object containing camera data (unpacked later)
     :param rTol        :  object containing tolerances for solvers
-    #
+    
      
     :returns           :  2xN matrix of image points
     """
@@ -1371,7 +1367,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
     sum of squared differences of the (known) world points projected into
     cameras and the measured images of these points.  The minimization is
     done using a non-linear least squares Lev-Marq solver
-    #
+    
      
     :param u                     :  2 x N x M matrix containing N measured 2D image plane points 
     :param par0                  :  3 x 4 x M initial guess for the camera matrix (Later I will change this to be refreaction model)
@@ -1383,7 +1379,7 @@ def cam_model_adjust(u,par0,X,sD,cD,rTol,maxFev=1600,maxfunc_dontstop_flag=False
     :param maxfunc_dontstop_flag :  run until solution is found if 'on'
     :param print_err             :  boolean; Print pre- and post-optimization error
     :param print_data            :  boolean; Print initial and final camera parameters   
-    #
+    
      
     :returns                  :  3 x 4 x M best-fit camera matrix, 7xM array of best-fit parameters
     """
@@ -1471,7 +1467,7 @@ def planar_grid_adj (planeParams,P,xyzgrid,spData,planeData,rTol):
     """
     Given M camera pinhole matrices and the coordinates of a world point,
     project the world point to image points in each camera.
-    #
+    
      
     :param P             :  3 x 4 x ncams camera parameter matrix
     :param xyzgrid       :  3 x N matrix of points on the grid
@@ -1500,7 +1496,7 @@ def planar_grid_triang(umeas_mat,P,xyzgrid,planeParams0,spData,planeData,rTol,pr
     This function finds the best-fit world point location by minimizing the
     sum of squares of the point projected into (known) cameras.  The
     minimization is done using a non-linear least squares Lev-Marq solver
-    #
+    
      
     :param umeas_mat           :  2 x Npts x ncams matrix containing N measured image points in M
                                  cameras.  If any camera doesn't see a point, NaN's should be in place of
@@ -1599,7 +1595,7 @@ def selfCalibrate (umeas, pData, camData, scData, tols):
     :param camData (contains so,ncams)                 :  camera data object containing, distance of cameras from tank (mm), number of cameras being calibrated
     :param scData                                      :  scene data object 
     :param tols (contains maxiter, rep_err_tol)        :  tolerances object containing max number of iterations for optimizers, acceptable refraction error
-    #
+    
      
     :returns            :  camera matrix for each camera (3 x 4 x ncams), parameters for each camera (7 x ncams), world points, parameters for each calibration plane (6 x ncalplanes)
     """
@@ -1713,7 +1709,7 @@ def showCalibData(ccoords, X, zW):
 
 def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
     """
-    #Save calibration data
+    Save calibration data
      
     :param exptpath :  path on which data should be saved
     :param camnames :  names of cameras to which data belongs
@@ -1723,7 +1719,7 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
     :param scdata   :  scene data object
     :param camdata  :  camera data object 
     :param name     :  name of file to save data as
-    #
+    
       
     :returns: file to which data was saved (closed)
     """    
@@ -1776,7 +1772,7 @@ def saveCalibData(exptpath, camnames, p, cparams, err, scdata, camdata, name):
 
 
 
-######################################General functions ##############################################################
+###################################### Meta-functions ##############################################################
 
 
 def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol,):
@@ -1804,7 +1800,7 @@ def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes
     :param bi_maxiter  :  max number of iterations for bifurcation snell's law solver
     :param z3_tol      :  tolerance for distance of grid points from tank wall
     :param rep_Err_Tol :  tolerance for final reprojection error 
-    #
+    
      
     :returns: object containing parameters of the calibration planes/grids, object containing parameters of the calibration images, object containing parameters of the experimental setting, object containing tolerances for solvers
     """
@@ -1819,11 +1815,11 @@ def setupObjects(dx,dy,nx,ny,ncalplanes,znet, sx,sy,pix_pitch,so,f,ncams,nframes
     
 def Calibration( datapath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n2,n3,tw,zw, tol,fg_tol,maxiter,bi_tol,bi_maxiter,z3_tol,rep_err_tol, sx,sy,pix_pitch,so,f,nframes=0, exptpath=None) :
     """
-    Carry out the refractive autocalibration process from beginning to end, using multipage tiffs 
-    #
+    Carry out the refractive autocalibration process from beginning to end 
+    
      
     :param datapath    :  Path to stored images
-    :param exptpath    :  Path for saved output
+    :param exptpath    :  Path for saved output -- defaults to datapath
     :param camids      :  Names of cameras being calibrated    
     :param n1,2,3      :  indices of refraction of 3 media in system    
     :param dx,dy       :  spacing of grid points on calibration grid    
@@ -1844,14 +1840,14 @@ def Calibration( datapath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n
     :param bi_maxiter  :  max number of iterations for bifurcation snell's law solver
     :param z3_tol      :  tolerance for distance of grid points from tank wall
     :param rep_Err_Tol :  tolerance for final reprojection error 
-    :param image_type  :  storage format for images: "multi" for multipage tiff or "folder" for individual images in folders 
-       
+    :param image_type  :  storage format for images: "multi" for multipage tiff or "folder" for individual images in folders       
      
     """    
     ncams = len(camids) #get number of cameras
     
     if exptpath is None:
         exptpath = datapath
+        
     if not os.path.isdir(datapath):
         raise ValueError ("Bad Datapath.")
     if not os.path.isdir(exptpath):
