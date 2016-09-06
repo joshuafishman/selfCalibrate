@@ -521,7 +521,7 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
     Find chessboard corners on grid images, either passed in directly or in a given location
      
     :param                                   :  names of cameras to which images belong
-    :param pData (contains ncalplanes, nX,nY): object containing the number of planes, number of grid points per row and column on each plane
+    :param pData (contains ncalplanes, nX,nY):  object containing the number of planes, number of grid points per row and column on each plane
     :param exptpath                          :  optional; location to save a file containing corners 
     :param imgs                              :  array of images in which to find corners (order should be [camera[image]]).
     :param show_imgs                         :  boolean; plot found corners on images         
@@ -581,6 +581,7 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
     
                         else:    
                             if manual:
+                                print('  Reconstruction failed: Manual corner finding.')
                                 corners = []
                                 x,y = 20,20
                                 while len(corners) < nX*nY:
@@ -601,21 +602,22 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
                                     cv2.circle(I, (x,y), 2, (255, 255, 255))
                                     for c in corners:
                                         cv2.circle(I, (c[0],c[1]), 3, (0, 0, 0))
-                                    cv2.imshow("Move with wasd keys and press c to select corners",I)
+                                    cv2.imshow("Manual corner finding: Move with wasd keys and press c to select corners",I)
                                     
                                 corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV     
                             
-                            elif not debug or show_imgs:
-                                figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
-                                plt.plot(corners[:,0],corners[:,1],'.')
-                                plt.imshow(I, cmap='gray')
-                                plt.show() 
+                            else:
+                                if not debug or show_imgs:
+                                    figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
+                                    plt.plot(corners[:,0],corners[:,1],'.')
+                                    plt.imshow(I, cmap='gray')
+                                    plt.show() 
                                 
-                            elif debug: #trying to find all failed images  
-                                failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
-                                continue  #skip to next iteration  
+                                if debug: #trying to find all failed images  
+                                    failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
+                                    continue  #skip to next iteration  
                              
-                            raise RuntimeError ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
+                                raise RuntimeError ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
                             
                     print (' Processing successful.')    
                                    
