@@ -1850,7 +1850,7 @@ def Calibration( datapath, camids, image_type, dx,dy,nx,ny,ncalplanes,znet, n1,n
         
     if not os.path.isdir(datapath):
         raise ValueError ("Bad Datapath.")
-    if not os.path.isdir(exptpath):
+    if not os.path.isdir(os.path.split(exptpath)[0]):
         raise ValueError ("Bad Exptpath.")
     
     #setup experimental parameter storage objects
