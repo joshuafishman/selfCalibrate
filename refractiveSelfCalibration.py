@@ -141,7 +141,7 @@ def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     """
     get correct images for calibration from multipage tiff and save them in a folder called 'calibration'
      
-    :param datapath   : path to stored images
+    :param datapath   :  path to stored images
     :param exptpath   :  path to output saved data
     :param camNames   :  names of cameras to which images belong
     :param ncalplanes :  number of calibration planes in images
@@ -157,9 +157,9 @@ def saveCalibImagesTiff(datapath, exptpath, camNames, ncalplanes, nframes = 0):
     outpath = os.path.join(exptpath,'calibration')
     
     #find calibration files to use
-    img = [y for y in cams for i in range(0, ncams) if camNames[i] in y]
+    img = [y for name in camNames for y in cams if name in y]
     if not len (img) == ncams:
-        raise ValueError ("Error parsing files in " +datapath + ". Check the names of .tif files.")
+        raise ValueError ("Found "+ str(len(img)) + " files in "+ os.path.abspath(datapath) + ", not " + str(ncams) + ". Check the names of .tif files.")
     
     #find indices of frames of tiff to be used for calibration
     frameind = getSpacedFrameInd(img[0], ncalplanes, nframes)
@@ -230,7 +230,7 @@ def getCalibImagesFolder(datapath, camNames, ncalplanes):
      
     :param datapath   :  path to stored images
     :param camNames   :  names of camera folders
-    :param ncalplanes :  number of calibration planes in images
+    :param ncalplanes :  number of calibration planes in images (used as a sanity check)
     
      
     :returns       : greyscale images to use for calibration ([ncams[nplanes]]) 
@@ -375,121 +375,121 @@ def fixCorners(points,nX,nY, numMissing):
     
     ##Actual point replacement 
     
-    
     ret = 0
     
-    
-    #First, replace any of the four corners of the grid if they're missing:
-    
-    edges   = np.array([p for p in points if isEdge(p,points)])
-    corners = np.array([p for p in points if isCorner(p,points)])
-    
-    cLines = []
-    
-    #find the lines y=mx + b describing the sides of the grid
-    for n,c in enumerate(corners): 
-        for i,ang in enumerate(adjacent (c,edges,2)[1]):
-            angles = [getAngle(c,e) for e in edges if abs((getAngle(c,e)-ang)) < tol*pi/2]
-            m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
-            b      = c[1] - m*c[0]   #y = mx+b
-            if not any (line == [m,b] for line in cLines):            
-                cLines.append([m,b])       
-    
-    #edge lines            
-    cLines = sorted (cLines, key = lambda l: abs(l[0])) #order lines by slope; should be 2 pairs of similar slope
-    
-    #find corners at the intersection of lines [0,3], [0,4], [1,3], [1,4] 
-    cornersFound = np.array([intersection(cLines[int(i/2)], cLines[2+i%2]) for i in range (4)])   
-    
-    #add missing corners to found points array  
-    #fPoints :  found points array
-    fPoints = np.append(points,[c for c in cornersFound if not any(np.array_equal(c,c1) for c1 in corners)], axis=0)
-    
-    if len(cornersFound) !=4:
-        print ('Unable to find corner or missing internal point. Found ' + str(len(cornersFound)) + ' corners.') 
-        return ret, fPoints
-    
-    
-    #Next, re-find and sort the edges
-    edges  = [p for p in fPoints if isEdge(p,fPoints)]
-    edges  = [sorted([p for p in edges if abs(2*(p[1]-l[0]*p[0]-l[1])/(p[1]+l[0]*p[0])) < tol], key = lambda p: p[1]) for l in cLines]
-    
-    #edges should be sorted into 4 groups now -- figure out which is which    
-    top    = np.array(edges[1])
-    bottom = np.array(edges[0]) 
-    if np.mean(bottom[:,1]) > np.mean(top[:,1]):
-        bottom,top = top,bottom
+    if numMissing>0: # if there are points missing
         
-    left   = np.array(edges[2])
-    right  = np.array(edges[3])
-    if np.mean(left[:,0]) > np.mean(right[:,0]):
-        left,right = right,left
+        #First, replace any of the four corners of the grid if they're missing:
+        
+        edges   = np.array([p for p in points if isEdge(p,points)])
+        corners = np.array([p for p in points if isCorner(p,points)])
+        
+        cLines = []
+        
+        #find the lines y=mx + b describing the sides of the grid
+        for n,c in enumerate(corners): 
+            for i,ang in enumerate(adjacent (c,edges,2)[1]):
+                angles = [getAngle(c,e) for e in edges if abs((getAngle(c,e)-ang)) < tol*pi/2]
+                m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
+                b      = c[1] - m*c[0]   #y = mx+b
+                if not any (line == [m,b] for line in cLines):            
+                    cLines.append([m,b])       
+        
+        #edge lines            
+        cLines = sorted (cLines, key = lambda l: abs(l[0])) #order lines by slope; should be 2 pairs of similar slope
+        
+        #find corners at the intersection of lines [0,3], [0,4], [1,3], [1,4] 
+        cornersFound = np.array([intersection(cLines[int(i/2)], cLines[2+i%2]) for i in range (4)])   
+        
+        #add missing corners to found points array  
+        #fPoints :  found points array
+        fPoints = np.append(points,[c for c in cornersFound if not any(np.array_equal(c,c1) for c1 in corners)], axis=0)
+        
+        if len(cornersFound) !=4:
+            print ('Unable to find corner or missing internal point. Found ' + str(len(cornersFound)) + ' corners.') 
+            return ret, fPoints
+        
+        
+        #Next, re-find and sort the edges
+        edges  = [p for p in fPoints if isEdge(p,fPoints)]
+        edges  = [sorted([p for p in edges if abs(2*(p[1]-l[0]*p[0]-l[1])/(p[1]+l[0]*p[0])) < tol], key = lambda p: p[1]) for l in cLines]
+        
+        #edges should be sorted into 4 groups now -- figure out which is which    
+        top    = np.array(edges[1])
+        bottom = np.array(edges[0]) 
+        if np.mean(bottom[:,1]) > np.mean(top[:,1]):
+            bottom,top = top,bottom
+            
+        left   = np.array(edges[2])
+        right  = np.array(edges[3])
+        if np.mean(left[:,0]) > np.mean(right[:,0]):
+            left,right = right,left
+        
+        
+        #using the sorted edges, break the grid into rows and columns
+        #need 2 complete edges to work
+        #future work: match up points on opposite edges
+        
+        if len(bottom) == nX:
+            theta  = np.atan(cLines[3][0])
+            columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom] 
+        elif len(top) == nX:
+            theta  = np.atan(-cLines[3][0])
+            columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(t, p), theta)) < tol*pi/2 or np.array_equal(p, t)], key = lambda p: p[1]) for t in top] 
+        else:
+            print("Missing too many edge points -- unable to reconstruct grid")
+            return ret, fPoints
+        
+        if len(left)   == nY:    
+            theta   = np.atan(cLines[0][0])
+            rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(lef, p), theta)) < tol*pi/2 or np.array_equal(p, lef)], key = lambda p: p[0])  for lef in left]
+        elif len(right) == nY:
+            theta   = np.atan(-cLines[0][0])
+            rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(rig, p), theta)) < tol*pi/2 or np.array_equal(p, rig)], key = lambda p: p[0]) for rig in right]
+        else:
+            print("Missing parallel edge points -- unable to reconstruct grid")
+            return ret, fPoints
+       
+       
+        #using the rows and columns, find the lines defining the grid      
+       
+        colLines = []
+        for col in columns:
+            angles = [getAngle(col[0],p) for p in col[1:]] 
+            m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
+            b      = col[0][1] -  m*col[0][0]   #y = mx+b
+            colLines.append([m,b])
+        if len (colLines) != nX:
+            print("Wrong number of columns.")
+            return ret, fPoints
+        
+        rowLines = []    
+        for row in rows:
+            angles = [getAngle(row[0],p) for p in row[1:]] 
+            m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
+            b      = row[0][1] -  m*row[0][0]   #y = mx+b
+            rowLines.append([m,b])
+        if len (rowLines) != nY:
+            print ("Wrong number of rows.")  
+            return ret, fPoints
+        
     
+        #Finally, reconstruct the grid points by placing a point at each grid intersection    
     
-    #using the sorted edges, break the grid into rows and columns
-    #need 2 complete edges to work
-    #future work: match up points on opposite edges
-    
-    if len(bottom) == nX:
-        theta  = np.atan(cLines[3][0])
-        columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(bot, p), theta)) < tol*pi/2 or np.array_equal(p, bot)], key = lambda p: p[1]) for bot in bottom] 
-    elif len(top) == nX:
-        theta  = np.atan(-cLines[3][0])
-        columns = [sorted([p for p in fPoints if abs(angleDiff(getAngle(t, p), theta)) < tol*pi/2 or np.array_equal(p, t)], key = lambda p: p[1]) for t in top] 
-    else:
-        print("Missing too many edge points -- unable to reconstruct grid")
-        return ret, fPoints
-    
-    if len(left)   == nY:    
-        theta   = np.atan(cLines[0][0])
-        rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(lef, p), theta)) < tol*pi/2 or np.array_equal(p, lef)], key = lambda p: p[0])  for lef in left]
-    elif len(right) == nY:
-        theta   = np.atan(-cLines[0][0])
-        rows    = [sorted([p for p in fPoints if abs(angleDiff(getAngle(rig, p), theta)) < tol*pi/2 or np.array_equal(p, rig)], key = lambda p: p[0]) for rig in right]
-    else:
-        print("Missing parallel edge points -- unable to reconstruct grid")
-        return ret, fPoints
-   
-   
-    #using the rows and columns, find the lines defining the grid      
-   
-    colLines = []
-    for col in columns:
-        angles = [getAngle(col[0],p) for p in col[1:]] 
-        m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
-        b      = col[0][1] -  m*col[0][0]   #y = mx+b
-        colLines.append([m,b])
-    if len (colLines) != nX:
-        print("Wrong number of columns.")
-        return ret, fPoints
-    
-    rowLines = []    
-    for row in rows:
-        angles = [getAngle(row[0],p) for p in row[1:]] 
-        m      = np.mean(np.sin(angles)) / np.mean(np.cos(angles)) #slope of the line is the tangent of the angle it makes with the x axis
-        b      = row[0][1] -  m*row[0][0]   #y = mx+b
-        rowLines.append([m,b])
-    if len (rowLines) != nY:
-        print ("Wrong number of rows.")  
-        return ret, fPoints
-    
-
-    #Finally, reconstruct the grid points by placing a point at each grid intersection    
-
-    fPoints = np.array([intersection(colLines[c], rowLines[r]) for c in range (nX) for r in range (nY)])
-    
-    
-    #xRange = np.linspace(min(p[0] for p in fPoints), max(p[0] for p in fPoints),50)
-    #yRange = np.linspace(min(p[1] for p in fPoints), max(p[1] for p in fPoints),50)
-    #colPoints = np.array([( (y-l[1])/l[0], y) for l in colLines for y in yRange])
-    #rowPoints = np.array([(x , l[0]*x+l[1])   for l in rowLines for x in xRange])
-    
-    #figL = plt.figure('Found Lines')
-    #figL.clear() 
-    #plt.plot(colPoints[:,0],colPoints[:,1])
-    #plt.plot(rowPoints[:,0],rowPoints[:,1])
-    #plt.plot(fPoints[:,0],fPoints[:,1],'p')
-   
+        fPoints = np.array([intersection(colLines[c], rowLines[r]) for c in range (nX) for r in range (nY)])
+        
+        
+        #xRange = np.linspace(min(p[0] for p in fPoints), max(p[0] for p in fPoints),50)
+        #yRange = np.linspace(min(p[1] for p in fPoints), max(p[1] for p in fPoints),50)
+        #colPoints = np.array([( (y-l[1])/l[0], y) for l in colLines for y in yRange])
+        #rowPoints = np.array([(x , l[0]*x+l[1])   for l in rowLines for x in xRange])
+        
+        #figL = plt.figure('Found Lines')
+        #figL.clear() 
+        #plt.plot(colPoints[:,0],colPoints[:,1])
+        #plt.plot(rowPoints[:,0],rowPoints[:,1])
+        #plt.plot(fPoints[:,0],fPoints[:,1],'p')
+       
 
     
     ##Reordering ###
@@ -518,17 +518,17 @@ def fixCorners(points,nX,nY, numMissing):
     
     return ret, sPoints
     
-def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug = False):
+def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug = False, manual = True):
     """
     Find chessboard corners on grid images, either passed in directly or in a given location
      
     :param                                   :  names of cameras to which images belong
-    :param pData (contains ncalplanes, nX,nY): object containing the number of planes, number of grid points per row and column on each plane
+    :param pData (contains ncalplanes, nX,nY):  object containing the number of planes, number of grid points per row and column on each plane
     :param exptpath                          :  optional; location to save a file containing corners 
     :param imgs                              :  array of images in which to find corners (order should be [camera[image]]).
     :param show_imgs                         :  boolean; plot found corners on images         
     :param debug                             :  boolean; if cornerfinder is failing, find out which points failed in which images          
-    
+    :param manual                            :  boolean; manually find corners on failed images
      
     :returns          :  2 by nX*nY*ncalplanes by ncams array of corner coordinates 
     """
@@ -552,7 +552,6 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
             try:
                 I = imgs[j][i]
                 print ('Finding corners in image '+str(i+1) +' in camera ' +camnames[j])
-                
                     
                 #Find corners then refine
                 ret, corners = cv2.findChessboardCorners(I,(nX,nY))
@@ -583,19 +582,46 @@ def findCorners(pData, camnames, imgs , exptpath =[], show_imgs = False, debug =
                             corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV
     
                         else:    
-                            print ('  Reconstruction failed.')
-                           
-                            if not debug or show_imgs:
-                                figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
-                                plt.plot(corners[:,0],corners[:,1],'.')
-                                plt.imshow(I, cmap='gray')
-                                plt.show() 
+                            if manual:
+                                print('  Reconstruction failed: Manual corner finding.')
+                                corners = []
+                                x,y = 20,20
+                                        
+                                while len(corners) < nX*nY:
+                                    I = copy.deepcopy(imgs[j][i])
+                                    cv2.circle(I, (x,y), 2, (255, 255, 255))
+                                    for c in corners:
+                                        cv2.circle(I, (c[0],c[1]), 3, (0, 0, 0))
+                                    cv2.imshow("Manual corner finding: Move with wasd keys and press c to select corners",I)
                                 
-                            if debug: #trying to find all failed images  
-                                failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
-                                continue  #skip to next iteration  
+                                    key = cv2.waitKey(1) & 0xFF
+                                    if key == ord("w"):
+                                    		y-=1
+                                    if key == ord("s"):
+                                    		y+=1
+                                    if key == ord("a"):
+                                    		x-=1  
+                                    if key == ord("d"):
+                                    		x+=1  
+                                    if key == ord("c"):
+                                        corners.append([x,y])
+                                        print "appended corner"
+                                    
+                                fixCorners(corners,nX,nY,0) #reorder 
+                                corners.shape = (nX*nY,1,2) #reshape corners to shape expected by openCV     
+                            
+                            else:
+                                if not debug or show_imgs:
+                                    figC = plt.figure('Corners found in image ' +str(i+1) + ' in camera ' +camnames[j] + ' (failed)')                
+                                    plt.plot(corners[:,0],corners[:,1],'.')
+                                    plt.imshow(I, cmap='gray')
+                                    plt.show() 
+                                
+                                if debug: #trying to find all failed images  
+                                    failed[camnames[j]].append([i,numfound]) #add [image, number of points found] to the failed dictionary
+                                    continue  #skip to next iteration  
                              
-                            raise RuntimeError ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
+                                raise RuntimeError ('Failed: only found ' + str(numfound) + ' corners in image ' +str(i+1) + ' in camera ' + camnames[j] + '.')
                             
                     print (' Processing successful.')    
                                    
@@ -672,7 +698,7 @@ def getScale (u, nX, nY, dX, imgnum, camnum):
     plt.plot([p1[0],p2[0]], [p1[1],p2[1]],'r+')
     plt.show()
     
-    scale = np.sqrt((p1[0] -  p2[0])**2 + (p1[1] -  p2[1])**2)/(dX*nX)    
+    scale = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)/(dX*nX)    
     return scale
     
     
@@ -966,8 +992,8 @@ def NR_1eq(r1,r2,z1,z2,n1,n2,tol):
     while max_err_r1 > tol:
         r1_old     = r1new
         f,df_r1    = f_eval_1eq(r1_old,r2,z1,z2,n1,n2) #evaluate snell's law equation
-        r1new      = r1_old -   f/df_r1
-        err_r1     = abs(r1new-r1_old)
+        r1new      = r1_old - f/df_r1
+        err_r1     = abs(r1new - r1_old)
         Iter       = Iter + 1
         max_err_r1 = err_r1.max()
         
@@ -1000,9 +1026,9 @@ def NR_2eq(r1,r2,r3,z1,z2,z3,n1,n2,n3,tol,maxIter):
         #evaluate snell's law equations
         f,df_dr1,df_dr2,g,dg_dr1,dg_dr2 = f_eval_2eq(r1_old,r2_old,r3,z1,z2,z3,n1,n2,n3)
 
-        denom = (df_dr1*dg_dr2 -   df_dr2*dg_dr1)
-        r1new = r1_old -   (f*dg_dr2 -   g*df_dr2)/denom
-        r2new = r2_old -   (g*df_dr1 -   f*dg_dr1)/denom
+        denom = (df_dr1*dg_dr2 - df_dr2*dg_dr1)
+        r1new = r1_old - (f*dg_dr2 - g*df_dr2)/denom
+        r2new = r2_old - (g*df_dr1 - f*dg_dr1)/denom
         
         Iter   = Iter + 1
         err_r1 = abs(r1new -   r1_old)
